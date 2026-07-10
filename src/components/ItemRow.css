@@ -200,6 +200,10 @@
   align-items: center;
   gap: var(--sp-1);
 }
+.item-row__menu-wrap { position: relative; }
+.item-row__menu { position: absolute; z-index: 20; top: calc(100% + 4px); right: 0; min-width: 150px; padding: var(--sp-1); border-radius: var(--r-sm); box-shadow: var(--shadow-lg); }
+.item-row__menu button { display: flex; align-items: center; gap: var(--sp-2); width: 100%; padding: var(--sp-2) var(--sp-3); border-radius: 6px; color: var(--text-secondary); text-align: left; font-size: var(--fs-sm); }
+.item-row__menu button:hover { color: var(--text-primary); background: rgba(240,253,244,.07); }
 .item-row__actions .icon-btn {
   width: 34px;
   height: 34px;

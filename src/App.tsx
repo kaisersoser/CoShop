@@ -9,6 +9,8 @@ import {
   Store as StoreIcon,
   ChevronDown,
   X,
+  Cloud,
+  Undo2,
 } from 'lucide-react';
 import {
   useShopStore,
@@ -19,6 +21,9 @@ import { ShoppingList } from './components/ShoppingList';
 import { CostFooter } from './components/CostFooter';
 import { AddItemComposer } from './components/AddItemComposer';
 import { ListManager } from './components/ListManager';
+import { AccountPanel } from './components/AccountPanel';
+import { startCloudSync, syncNow } from './lib/cloudSync';
+import { supabase } from './lib/supabase';
 import './App.css';
 
 /* ============================================================================
@@ -34,11 +39,29 @@ export default function App() {
   const activeStore = useShopStore(selectActiveStore);
   const setListBudget = useShopStore((s) => s.setListBudget);
   const onboardingSeen = useShopStore((s) => s.onboardingSeen);
+  const hydrated = useShopStore((s) => s.hydrated);
+  const latestTrash = useShopStore((s) => s.trash[0]);
+  const restoreTrash = useShopStore((s) => s.restoreTrash);
+  const dismissTrash = useShopStore((s) => s.dismissTrash);
 
   const [composerOpen, setComposerOpen] = useState(false);
   const [listsOpen, setListsOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
 
-  if (!activeList) return null; // store always seeds at least one list
+  useEffect(() => {
+    if (!supabase) return;
+    let timer: number | undefined;
+    void supabase.auth.getSession().then(({ data }) => void startCloudSync(data.session));
+    const auth = supabase.auth.onAuthStateChange((_event, session) => void startCloudSync(session));
+    const unsubscribe = useShopStore.subscribe((state, previous) => {
+      if (state.lists === previous.lists && state.itemsByList === previous.itemsByList && state.stores === previous.stores && state.trash === previous.trash) return;
+      window.clearTimeout(timer); timer = window.setTimeout(() => void syncNow(), 1200);
+    });
+    const online = () => void syncNow(); window.addEventListener('online', online);
+    return () => { window.clearTimeout(timer); unsubscribe(); auth.data.subscription.unsubscribe(); window.removeEventListener('online', online); };
+  }, []);
+
+  if (!hydrated || !activeList) return <div className="app-loading" role="status">Loading your lists…</div>;
 
   return (
     <div className="app-shell">
@@ -46,13 +69,15 @@ export default function App() {
         listName={activeList.name}
         storeName={activeStore?.name}
         budget={activeList.budget}
+        currency={activeList.currency}
         onOpenLists={() => setListsOpen(true)}
+        onOpenAccount={() => setAccountOpen(true)}
         onBudgetChange={(budget) => setListBudget(activeList.id, budget)}
       />
 
       <main className="app-main">
-        {!onboardingSeen && <Onboarding />}
-        <ShoppingList />
+        {!onboardingSeen && <Onboarding onAdd={() => setComposerOpen(true)} />}
+        <ShoppingList onAdd={() => setComposerOpen(true)} />
       </main>
 
       <button
@@ -65,6 +90,15 @@ export default function App() {
 
       {composerOpen && <AddItemComposer onClose={() => setComposerOpen(false)} />}
       {listsOpen && <ListManager onClose={() => setListsOpen(false)} />}
+      {accountOpen && <AccountPanel onClose={() => setAccountOpen(false)} />}
+
+      {latestTrash && (
+        <div className="undo-toast" role="status">
+          <span>Removed {latestTrash.label}</span>
+          <button onClick={() => restoreTrash(latestTrash.id)}><Undo2 size={15} /> Undo</button>
+          <button className="icon-btn" onClick={() => dismissTrash(latestTrash.id)} aria-label="Dismiss undo"><X size={15} /></button>
+        </div>
+      )}
 
       <CostFooter />
     </div>
@@ -78,11 +112,13 @@ interface HeaderProps {
   listName: string;
   storeName?: string;
   budget?: number;
+  currency: string;
   onOpenLists: () => void;
-  onBudgetChange: (budget: number) => void;
+  onOpenAccount: () => void;
+  onBudgetChange: (budget: number | undefined) => void;
 }
 
-function Header({ listName, storeName, budget, onOpenLists, onBudgetChange }: HeaderProps) {
+function Header({ listName, storeName, budget, currency, onOpenLists, onOpenAccount, onBudgetChange }: HeaderProps) {
   const [editing, setEditing] = useState(false);
   const [draftBudget, setDraftBudget] = useState(budget !== undefined ? String(budget) : '');
 
@@ -92,7 +128,7 @@ function Header({ listName, storeName, budget, onOpenLists, onBudgetChange }: He
 
   const commit = () => {
     const parsed = parseFloat(draftBudget);
-    onBudgetChange(!Number.isNaN(parsed) && parsed >= 0 ? parsed : 0);
+    onBudgetChange(draftBudget.trim() === '' ? undefined : !Number.isNaN(parsed) && parsed >= 0 ? parsed : undefined);
     setEditing(false);
   };
 
@@ -106,6 +142,7 @@ function Header({ listName, storeName, budget, onOpenLists, onBudgetChange }: He
           <span className="app-header__brand-text">CoShop</span>
         </div>
         <div className="app-header__top-actions">
+          <button className="icon-btn" aria-label="Backup, account, and sharing" onClick={onOpenAccount}><Cloud size={16} /></button>
           <button
             className="btn-ghost app-header__lists-btn"
             onClick={onOpenLists}
@@ -158,7 +195,7 @@ function Header({ listName, storeName, budget, onOpenLists, onBudgetChange }: He
             {budget !== undefined && budget > 0 && (
               <span className="app-header__budget">
                 <Wallet size={14} />
-                Budget · ${budget.toFixed(2)}
+                Budget · {new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(budget)}
               </span>
             )}
           </div>
@@ -171,7 +208,7 @@ function Header({ listName, storeName, budget, onOpenLists, onBudgetChange }: He
 /* ----------------------------------------------------------------------------
    Onboarding — concise, dismissible first-run coachmark focused on adding.
    -------------------------------------------------------------------------- */
-function Onboarding() {
+function Onboarding({ onAdd }: { onAdd: () => void }) {
   const dismiss = useShopStore((s) => s.dismissOnboarding);
   return (
     <div className="onboarding glass" role="note">
@@ -186,8 +223,8 @@ function Onboarding() {
         Tap the <strong>+</strong> button to add your first item. Search the catalog or just type —
         we’ll file it under the right aisle automatically.
       </p>
-      <button className="btn-primary onboarding__cta" onClick={dismiss}>
-        Got it
+      <button className="btn-primary onboarding__cta" onClick={onAdd}>
+        Add my first item
       </button>
     </div>
   );

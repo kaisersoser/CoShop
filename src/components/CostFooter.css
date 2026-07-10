@@ -15,6 +15,7 @@
   box-shadow: var(--shadow-lg), inset 0 1px 0 var(--glass-highlight);
   animation: slide-up-fade var(--dur-slow) var(--ease-spring) both;
 }
+.cost-footer__coverage { margin: 0 var(--sp-3) var(--sp-2); text-align: center; color: var(--warning); font-size: .68rem; }
 
 /* Progress track */
 .cost-footer__progress-track {

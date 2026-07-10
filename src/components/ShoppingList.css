@@ -8,6 +8,11 @@
   gap: var(--sp-3);
   animation: slide-up-fade var(--dur-med) var(--ease-out) both;
 }
+.shopping-progress { padding: var(--sp-3) var(--sp-4); border-radius: var(--r-md); }
+.shopping-progress > div:first-child { display: flex; justify-content: space-between; font-size: var(--fs-sm); color: var(--text-secondary); }
+.shopping-progress strong { color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.shopping-progress__track { height: 5px; margin-top: var(--sp-2); border-radius: var(--r-pill); overflow: hidden; background: rgba(240,253,244,.08); }
+.shopping-progress__track span { display: block; height: 100%; border-radius: inherit; background: var(--accent-grad); transition: width var(--dur-med) var(--ease-out); }
 
 /* Section header */
 .section-header {

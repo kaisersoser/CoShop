@@ -354,10 +354,8 @@
 }
 
 .autocomplete-list {
-  position: absolute;
-  top: calc(100% + var(--sp-2));
-  left: 0;
-  right: 0;
+  position: relative;
+  margin-top: var(--sp-2);
   z-index: 5;
   border-radius: var(--r-md);
   padding: var(--sp-1);
@@ -512,3 +510,7 @@
 .list-manager__store-row .field {
   flex: 1;
 }
+.app-loading { min-height: 100dvh; display: grid; place-items: center; color: var(--text-secondary); }
+.undo-toast { position: fixed; z-index: 90; left: 50%; bottom: calc(var(--footer-h) + var(--sp-5) + env(safe-area-inset-bottom)); transform: translateX(-50%); width: min(calc(100% - 32px), 460px); display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-3) var(--sp-4); border: 1px solid var(--glass-border); border-radius: var(--r-md); color: var(--text-primary); background: var(--bg-elev-3); box-shadow: var(--shadow-lg); }
+.undo-toast > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.undo-toast > button:not(.icon-btn) { display: inline-flex; align-items: center; gap: var(--sp-1); color: var(--accent-bright); font-weight: 700; }

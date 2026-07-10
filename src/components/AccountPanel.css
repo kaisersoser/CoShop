@@ -1,0 +1,17 @@
+.account-panel { gap: var(--sp-4); }
+.account-panel .modal__head { margin-bottom: 0; }
+.account-panel .modal__head h3, .account-panel__section h4 { display: flex; align-items: center; gap: var(--sp-2); }
+.account-panel__intro, .account-panel__section p { color: var(--text-secondary); font-size: var(--fs-sm); line-height: 1.5; }
+.account-panel__notice, .account-panel__identity, .account-panel__export { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-4); border: 1px solid var(--glass-border); border-radius: var(--r-md); background: rgba(240,253,244,.04); }
+.account-panel__notice > div, .account-panel__identity > div, .account-panel__export > div { display: flex; flex: 1; flex-direction: column; gap: 3px; }
+.account-panel__notice span, .account-panel__identity span, .account-panel__export span { color: var(--text-tertiary); font-size: var(--fs-xs); }
+.account-panel__section { display: flex; flex-direction: column; gap: var(--sp-3); padding-top: var(--sp-2); }
+.account-panel__row { display: flex; gap: var(--sp-2); align-items: center; }
+.account-panel__row .field { flex: 1; min-width: 0; }
+.account-panel__status { display: flex; align-items: center; gap: var(--sp-2); color: var(--text-secondary); font-size: var(--fs-sm); }
+.account-panel__status .icon-btn { margin-left: auto; }
+.sync-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-tertiary); }
+.sync-dot--synced { background: var(--success); }.sync-dot--syncing { background: var(--warning); animation: pulse-soft 1s infinite; }.sync-dot--error, .sync-dot--offline { background: var(--danger); }
+.account-panel__feedback { color: var(--text-secondary); background: var(--accent-grad-soft); border-radius: var(--r-sm); padding: var(--sp-3); font-size: var(--fs-sm); }
+.invite-code { overflow-wrap: anywhere; color: var(--accent-bright); }
+@media (max-width: 520px) { .account-panel__row { align-items: stretch; flex-direction: column; } }

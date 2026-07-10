@@ -8,8 +8,7 @@
    token is handcrafted for performance and crispness.
    ========================================================================== */
 
-/* Google Inter is preloaded in index.html for instant first paint. */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+/* System fonts keep first paint and the offline shell independent of a CDN. */
 
 /* ----------------------------------------------------------------------------
    1. Design Tokens — Emerald Gloss (active theme)
@@ -46,7 +45,7 @@
   --danger-soft: rgba(255, 179, 175, 0.18);
 
   /* Typography — Inter only, scale tightened for dark glass surfaces */
-  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-sans: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --fs-xs: 0.75rem;            /* 12px — label / caption */
   --fs-sm: 0.875rem;           /* 14px — body-sm */
   --fs-md: 1rem;               /* 16px — body-md */
@@ -121,6 +120,8 @@
   --lumina-shadow-glow: 0 8px 32px rgba(124, 92, 255, 0.35);
   --lumina-shadow-glow-cyan: 0 8px 32px rgba(33, 212, 253, 0.28);
 }
+.fatal-error { min-height: 100dvh; display: grid; place-content: center; gap: var(--sp-4); padding: var(--sp-6); text-align: center; }
+.fatal-error p { color: var(--text-secondary); }
 
 /* ----------------------------------------------------------------------------
    2. Reset

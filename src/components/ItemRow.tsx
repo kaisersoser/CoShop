@@ -8,11 +8,13 @@ import {
   X,
   Camera,
   AlertCircle,
+  MoreVertical,
 } from 'lucide-react';
 import type { ShoppingItem } from '../store/store';
 import { useShopStore } from '../store/store';
 import { CATEGORIES, OTHER_CATEGORY_ID } from '../data/categories';
 import { capabilities } from '../lib/capabilities';
+import { loadImage, removeImage, saveImage } from '../lib/media';
 import { CategorySelect } from './CategorySelect';
 import './ItemRow.css';
 
@@ -34,6 +36,14 @@ export function ItemRow({ item }: ItemRowProps) {
 
   const [photoOpen, setPhotoOpen] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [photoUrl, setPhotoUrl] = useState<string | undefined>(item.photoBase64);
+
+  useEffect(() => {
+    let active = true; let objectUrl: string | undefined;
+    void loadImage(item.photoRef).then((url) => { objectUrl = url; if (active && url) setPhotoUrl(url); });
+    return () => { active = false; if (objectUrl) URL.revokeObjectURL(objectUrl); };
+  }, [item.photoRef]);
 
   const hasPrice = typeof item.price === 'number';
   const lineTotal = hasPrice ? (item.price as number) * item.quantity : null;
@@ -84,46 +94,39 @@ export function ItemRow({ item }: ItemRowProps) {
         {/* Actions */}
         <div className="item-row__actions">
           <button
-            className={`icon-btn item-row__photo ${item.photoBase64 ? 'item-row__photo--has' : ''}`}
+            className={`icon-btn item-row__photo ${photoUrl ? 'item-row__photo--has' : ''}`}
             onClick={() => setPhotoOpen(true)}
-            aria-label={item.photoBase64 ? 'View photo' : 'Add photo'}
-            title={item.photoBase64 ? 'View photo' : 'Add photo'}
+            aria-label={photoUrl ? 'View photo' : 'Add photo'}
+            title={photoUrl ? 'View photo' : 'Add photo'}
           >
-            {item.photoBase64 ? (
-              <img src={item.photoBase64} alt="" className="item-row__photo-thumb" />
+            {photoUrl ? (
+              <img src={photoUrl} alt="" className="item-row__photo-thumb" />
             ) : (
               <ImageIcon size={16} />
             )}
           </button>
-          <button
-            className="icon-btn"
-            onClick={() => setEditing(true)}
-            aria-label="Edit item"
-            title="Edit"
-          >
-            <Pencil size={15} />
-          </button>
-          <button
-            className="icon-btn item-row__delete"
-            onClick={() => deleteItem(item.id)}
-            aria-label="Delete item"
-            title="Delete"
-          >
-            <Trash2 size={15} />
-          </button>
+          <div className="item-row__menu-wrap">
+            <button className="icon-btn" onClick={() => setMenuOpen((open) => !open)} aria-expanded={menuOpen} aria-label={`More actions for ${item.name}`}><MoreVertical size={17} /></button>
+            {menuOpen && <div className="item-row__menu glass-strong"><button onClick={() => { setEditing(true); setMenuOpen(false); }}><Pencil size={15} /> Edit item</button><button className="item-row__delete" onClick={() => { deleteItem(item.id); setMenuOpen(false); }}><Trash2 size={15} /> Remove item</button></div>}
+          </div>
         </div>
       </li>
 
       {photoOpen && (
         <PhotoModal
           item={item}
+          photoUrl={photoUrl}
           onClose={() => setPhotoOpen(false)}
-          onSave={(photoBase64) => {
-            updateItem(item.id, { photoBase64 });
+          onSave={async (dataUrl) => {
+            const photoRef = await saveImage(dataUrl, item.photoRef);
+            updateItem(item.id, { photoRef, photoBase64: undefined });
+            setPhotoUrl(dataUrl);
             setPhotoOpen(false);
           }}
-          onClear={() => {
-            updateItem(item.id, { photoBase64: undefined });
+          onClear={async () => {
+            await removeImage(item.photoRef);
+            updateItem(item.id, { photoRef: undefined, photoBase64: undefined });
+            setPhotoUrl(undefined);
             setPhotoOpen(false);
           }}
         />
@@ -150,13 +153,14 @@ export function ItemRow({ item }: ItemRowProps) {
    -------------------------------------------------------------------------- */
 interface PhotoModalProps {
   item: ShoppingItem;
+  photoUrl?: string;
   onClose: () => void;
-  onSave: (photoBase64: string) => void;
-  onClear: () => void;
+  onSave: (dataUrl: string) => Promise<void>;
+  onClear: () => Promise<void>;
 }
 
-function PhotoModal({ item, onClose, onSave, onClear }: PhotoModalProps) {
-  const [preview, setPreview] = useState<string | undefined>(item.photoBase64);
+function PhotoModal({ item, photoUrl, onClose, onSave, onClear }: PhotoModalProps) {
+  const [preview, setPreview] = useState<string | undefined>(photoUrl);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -185,7 +189,7 @@ function PhotoModal({ item, onClose, onSave, onClear }: PhotoModalProps) {
         aria-label={`Photo for ${item.name}`}
       >
         <div className="modal__head">
-          <h3>{item.photoBase64 ? 'Item Photo' : 'Add Photo'}</h3>
+          <h3>{photoUrl ? 'Item Photo' : 'Add Photo'}</h3>
           <button className="icon-btn" onClick={onClose} aria-label="Close">
             <X size={18} />
           </button>
@@ -210,15 +214,15 @@ function PhotoModal({ item, onClose, onSave, onClear }: PhotoModalProps) {
 
         <div className="modal__actions">
           <button className="btn-primary" onClick={choose}>
-            <Camera size={16} /> {item.photoBase64 ? 'Replace' : 'Choose photo'}
+            <Camera size={16} /> {photoUrl ? 'Replace' : 'Choose photo'}
           </button>
-          {item.photoBase64 && (
-            <button className="btn-ghost" onClick={onClear}>
+          {photoUrl && (
+            <button className="btn-ghost" onClick={() => void onClear()}>
               <Trash2 size={14} /> Remove
             </button>
           )}
-          {preview && preview !== item.photoBase64 && (
-            <button className="btn-ghost photo-save" onClick={() => preview && onSave(preview)}>
+          {preview && preview !== photoUrl && (
+            <button className="btn-ghost photo-save" onClick={() => preview && void onSave(preview)}>
               <Check size={16} /> Save photo
             </button>
           )}

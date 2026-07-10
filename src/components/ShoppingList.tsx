@@ -16,7 +16,7 @@ import './ShoppingList.css';
 const orderedCategories = (buckets: Record<string, ShoppingItem[]>): string[] =>
   Object.keys(buckets).sort((a, b) => categoryOrder(a) - categoryOrder(b));
 
-export function ShoppingList() {
+export function ShoppingList({ onAdd }: { onAdd: () => void }) {
   const items = useShopStore(selectActiveItems);
   const clearPurchased = useShopStore((s) => s.clearPurchased);
 
@@ -40,11 +40,15 @@ export function ShoppingList() {
   }, [items]);
 
   if (items.length === 0) {
-    return <EmptyState />;
+    return <EmptyState onAdd={onAdd} />;
   }
 
   return (
     <div className="shopping-list">
+      <div className="shopping-progress glass" role="status" aria-label={`${purchasedCount} of ${items.length} items purchased`}>
+        <div><span>Shopping progress</span><strong>{purchasedCount} of {items.length}</strong></div>
+        <div className="shopping-progress__track" aria-hidden="true"><span style={{ width: `${Math.round((purchasedCount / items.length) * 100)}%` }} /></div>
+      </div>
       {/* Pending section */}
       <SectionHeader icon={<PackageOpen size={16} />} title="Pending" count={pendingCount} />
       <div className="shopping-list__groups">
@@ -57,6 +61,7 @@ export function ShoppingList() {
         <div className="shopping-list__all-done glass">
           <CheckCircle2 size={28} className="text-grad-svg" />
           <p>All items in cart. Nice shopping!</p>
+          <button className="btn-ghost" onClick={onAdd}>Add another item</button>
         </div>
       )}
 
@@ -144,7 +149,7 @@ function SectionHeader({ icon, title, count, action }: SectionHeaderProps) {
 /* ----------------------------------------------------------------------------
    Empty state
    -------------------------------------------------------------------------- */
-function EmptyState() {
+function EmptyState({ onAdd }: { onAdd: () => void }) {
   return (
     <div className="empty-state glass">
       <div className="empty-state__icon">
@@ -152,6 +157,7 @@ function EmptyState() {
       </div>
       <h2>Your list is empty</h2>
       <p>Tap the + button to add your first item. CoShop works offline, so you can shop anywhere.</p>
+      <button className="btn-primary" onClick={onAdd}>Add first item</button>
     </div>
   );
 }

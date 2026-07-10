@@ -1,456 +1,213 @@
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
-import { resolveItem, categoryForCatalogId } from '../lib/categorize';
+import { createJSONStorage, persist } from 'zustand/middleware';
+import { categoryForCatalogId, resolveItem } from '../lib/categorize';
 import { OTHER_CATEGORY_ID } from '../data/categories';
+import { clearLegacyLocalState, indexedDbStorage, legacyLocalState } from '../lib/storage';
+import { saveImage } from '../lib/media';
 
-/* ============================================================================
-   CoShop — Zustand Global Store
-   ----------------------------------------------------------------------------
-   Multi-list, catalog-driven shopping state. Persisted to localStorage so the
-   app works fully offline and rehydrates on next launch.
-
-   Model (Phase 1):
-     - Multiple named, reusable lists.
-     - Items are grouped by product `category` (derived from the catalog).
-     - Optional store/location, tagged at the LIST level (item-level storeIds
-       are modeled for the future two-level view but have no UI yet).
-     - `price` is optional.
-   ========================================================================== */
-
-/** A single line item on a shopping list. */
 export interface ShoppingItem {
   id: string;
   name: string;
-  /** Catalog product id when the item matched a known product. */
   catalogId?: string;
-  /** Category id (see data/categories.ts); `other` when unmatched. */
   category: string;
-  /** Optional unit price in the user's currency. */
   price?: number;
   quantity: number;
   isPurchased: boolean;
-  /** Modeled for the two-level (store→category) north star; no UI in P1. */
   storeIds?: string[];
-  /** Optional base64-encoded photo for brand/reference. */
+  photoRef?: string;
+  /** Read only during the v2 migration, then moved into the media store on edit. */
   photoBase64?: string;
   createdAt: number;
+  updatedAt: number;
 }
 
-/** A named, reusable shopping list. */
 export interface ShoppingList {
   id: string;
   name: string;
-  /** Optional budget used by the cost calculator. */
   budget?: number;
-  /** Optional list-level store/location tag. */
+  currency: string;
   storeId?: string;
   createdAt: number;
   updatedAt: number;
 }
 
-/** An optional shopping location a list (and later items) can be tagged with. */
-export interface Store {
-  id: string;
-  name: string;
-  address?: string;
-}
-
-/** Structured input accepted by addItem. Category/ catalogId are resolved from
- *  `name` when omitted, so callers can pass either raw text or a known match. */
+export interface Store { id: string; name: string; address?: string; }
 export interface AddItemInput {
   name: string;
   catalogId?: string;
   category?: string;
   price?: number;
   quantity?: number;
-  photoBase64?: string;
+  photoRef?: string;
   storeIds?: string[];
 }
 
-/** Shape of the persisted store. */
-interface ShopState {
+export interface TrashEntry {
+  id: string;
+  kind: 'item' | 'items' | 'list';
+  label: string;
+  list?: ShoppingList;
+  listId: string;
+  items: ShoppingItem[];
+  deletedAt: number;
+}
+
+export interface ShopState {
   lists: ShoppingList[];
   itemsByList: Record<string, ShoppingItem[]>;
   stores: Store[];
+  trash: TrashEntry[];
+  categoryPreferences: Record<string, string>;
   activeListId: string;
   onboardingSeen: boolean;
+  hydrated: boolean;
 
-  // ---- List actions ----
   createList: (name?: string) => string;
   renameList: (id: string, name: string) => void;
   duplicateList: (id: string) => string;
   deleteList: (id: string) => void;
   setActiveList: (id: string) => void;
   setListBudget: (id: string, budget: number | undefined) => void;
-  /** Tag a list with an existing store, a new store (by name), or clear it. */
   setListStore: (id: string, store: { name: string; address?: string } | null) => void;
-
-  // ---- Item actions (operate on the active list) ----
   addItem: (input: AddItemInput) => void;
   toggleItemStatus: (id: string) => void;
   updateItem: (id: string, patch: Partial<Omit<ShoppingItem, 'id' | 'createdAt'>>) => void;
   deleteItem: (id: string) => void;
   setItemCategory: (id: string, category: string) => void;
   clearPurchased: () => void;
-
-  // ---- Misc ----
+  restoreTrash: (id?: string) => void;
+  dismissTrash: (id: string) => void;
   dismissOnboarding: () => void;
+  replaceFromCloud: (data: Pick<ShopState, 'lists' | 'itemsByList' | 'stores'>) => void;
 }
 
-/** Small helper to mint collision-resistant ids without external deps. */
-const uid = (): string =>
-  `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
+const uid = (): string => crypto.randomUUID();
+const defaultListName = (): string =>
+  new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(new Date()) + ' shopping';
+const normalize = (value: string) => value.trim().toLocaleLowerCase();
 
-/** A friendly default list label, e.g. "Week of Jun 22". */
-const defaultListName = (): string => {
-  const d = new Date();
-  return `Week of ${d.toLocaleString('en-US', { month: 'short', day: 'numeric' })}`;
+const initialState = () => {
+  const id = uid();
+  const now = Date.now();
+  return {
+    lists: [{ id, name: defaultListName(), currency: 'USD', createdAt: now, updatedAt: now }],
+    itemsByList: { [id]: [] },
+    stores: [] as Store[],
+    trash: [] as TrashEntry[],
+    categoryPreferences: {} as Record<string, string>,
+    activeListId: id,
+    onboardingSeen: false,
+    hydrated: false,
+  };
 };
 
-/** Build a fully-formed item from structured input, resolving the catalog. */
-const buildItem = (input: AddItemInput): ShoppingItem => {
+const buildItem = (input: AddItemInput, preferences: Record<string, string>): ShoppingItem => {
   let { name, catalogId, category } = input;
   if (!category) {
-    if (catalogId) {
-      category = categoryForCatalogId(catalogId);
-    } else {
+    category = preferences[normalize(name)];
+    if (!category && catalogId) category = categoryForCatalogId(catalogId);
+    if (!category) {
       const resolved = resolveItem(name);
-      name = resolved.name;
+      // Preserve exactly what the user typed; catalog matching only supplies metadata.
       catalogId = resolved.catalogId;
       category = resolved.category;
     }
   }
-  return {
-    id: uid(),
-    name: name.trim(),
-    catalogId,
-    category: category ?? OTHER_CATEGORY_ID,
-    price: input.price,
-    quantity: Math.max(1, input.quantity ?? 1),
-    isPurchased: false,
-    storeIds: input.storeIds,
-    photoBase64: input.photoBase64,
-    createdAt: Date.now(),
-  };
-};
-
-/** Initial seed items so the prototype looks alive on first launch. */
-const seedItems = (): ShoppingItem[] => {
   const now = Date.now();
-  const seeds: AddItemInput[] = [
-    { name: 'Oat Milk', price: 4.99, quantity: 2 },
-    { name: 'Sourdough Loaf', price: 6.5, quantity: 1 },
-    { name: 'Organic Avocados', price: 0.99, quantity: 4 },
-    { name: 'Cold Brew Concentrate', price: 11.99, quantity: 1 },
-    { name: 'Bananas', price: 0.59, quantity: 6 },
-  ];
-  return seeds.map((s, i) => ({ ...buildItem(s), createdAt: now + i }));
-};
-
-/** Fresh initial state for a first-ever launch. */
-const initialState = () => {
-  const listId = uid();
-  const now = Date.now();
-  const list: ShoppingList = {
-    id: listId,
-    name: defaultListName(),
-    budget: 120,
-    createdAt: now,
-    updatedAt: now,
-  };
   return {
-    lists: [list],
-    itemsByList: { [listId]: seedItems() },
-    stores: [] as Store[],
-    activeListId: listId,
-    onboardingSeen: false,
+    id: uid(), name: name.trim(), catalogId, category: category ?? OTHER_CATEGORY_ID,
+    price: input.price, quantity: Math.max(1, input.quantity ?? 1), isPurchased: false,
+    storeIds: input.storeIds, photoRef: input.photoRef, createdAt: now, updatedAt: now,
   };
 };
+const touch = (lists: ShoppingList[], id: string) =>
+  lists.map((list) => list.id === id ? { ...list, updatedAt: Date.now() } : list);
 
-/** Touch a list's updatedAt timestamp. */
-const touch = (lists: ShoppingList[], id: string): ShoppingList[] =>
-  lists.map((l) => (l.id === id ? { ...l, updatedAt: Date.now() } : l));
+export const useShopStore = create<ShopState>()(persist((set, get) => ({
+  ...initialState(),
+  createList: (name) => {
+    const id = uid(); const now = Date.now();
+    set((s) => ({ lists: [...s.lists, { id, name: name?.trim() || defaultListName(), currency: 'USD', createdAt: now, updatedAt: now }], itemsByList: { ...s.itemsByList, [id]: [] }, activeListId: id }));
+    return id;
+  },
+  renameList: (id, name) => set((s) => ({ lists: s.lists.map((l) => l.id === id ? { ...l, name: name.trim() || l.name, updatedAt: Date.now() } : l) })),
+  duplicateList: (id) => {
+    const s = get(); const source = s.lists.find((l) => l.id === id); if (!source) return id;
+    const newId = uid(); const now = Date.now();
+    const items = (s.itemsByList[id] ?? []).map((item) => ({ ...item, id: uid(), isPurchased: false, createdAt: now, updatedAt: now }));
+    set({ lists: [...s.lists, { ...source, id: newId, name: `${source.name} (copy)`, createdAt: now, updatedAt: now }], itemsByList: { ...s.itemsByList, [newId]: items }, activeListId: newId });
+    return newId;
+  },
+  deleteList: (id) => set((s) => {
+    if (s.lists.length <= 1) return s;
+    const list = s.lists.find((l) => l.id === id); if (!list) return s;
+    const entry: TrashEntry = { id: uid(), kind: 'list', label: list.name, list, listId: id, items: s.itemsByList[id] ?? [], deletedAt: Date.now() };
+    const lists = s.lists.filter((l) => l.id !== id); const itemsByList = { ...s.itemsByList }; delete itemsByList[id];
+    return { lists, itemsByList, trash: [entry, ...s.trash].slice(0, 25), activeListId: s.activeListId === id ? lists[0].id : s.activeListId };
+  }),
+  setActiveList: (id) => set((s) => s.lists.some((l) => l.id === id) ? { activeListId: id } : s),
+  setListBudget: (id, budget) => set((s) => ({ lists: s.lists.map((l) => l.id === id ? { ...l, budget, updatedAt: Date.now() } : l) })),
+  setListStore: (id, input) => set((s) => {
+    if (!input) return { lists: s.lists.map((l) => l.id === id ? { ...l, storeId: undefined, updatedAt: Date.now() } : l) };
+    const existing = s.stores.find((store) => normalize(store.name) === normalize(input.name)); const storeId = existing?.id ?? uid();
+    return { stores: existing ? s.stores : [...s.stores, { id: storeId, name: input.name.trim(), address: input.address }], lists: s.lists.map((l) => l.id === id ? { ...l, storeId, updatedAt: Date.now() } : l) };
+  }),
+  addItem: (input) => set((s) => { const id = s.activeListId; return { itemsByList: { ...s.itemsByList, [id]: [buildItem(input, s.categoryPreferences), ...(s.itemsByList[id] ?? [])] }, lists: touch(s.lists, id), onboardingSeen: true }; }),
+  toggleItemStatus: (itemId) => set((s) => { const id = s.activeListId; return { itemsByList: { ...s.itemsByList, [id]: (s.itemsByList[id] ?? []).map((it) => it.id === itemId ? { ...it, isPurchased: !it.isPurchased, updatedAt: Date.now() } : it) }, lists: touch(s.lists, id) }; }),
+  updateItem: (itemId, patch) => set((s) => { const id = s.activeListId; return { itemsByList: { ...s.itemsByList, [id]: (s.itemsByList[id] ?? []).map((it) => it.id === itemId ? { ...it, ...patch, updatedAt: Date.now() } : it) }, lists: touch(s.lists, id) }; }),
+  deleteItem: (itemId) => set((s) => {
+    const id = s.activeListId; const item = (s.itemsByList[id] ?? []).find((it) => it.id === itemId); if (!item) return s;
+    const entry: TrashEntry = { id: uid(), kind: 'item', label: item.name, listId: id, items: [item], deletedAt: Date.now() };
+    return { itemsByList: { ...s.itemsByList, [id]: (s.itemsByList[id] ?? []).filter((it) => it.id !== itemId) }, lists: touch(s.lists, id), trash: [entry, ...s.trash].slice(0, 25) };
+  }),
+  setItemCategory: (itemId, category) => set((s) => { const id = s.activeListId; const item = (s.itemsByList[id] ?? []).find((it) => it.id === itemId); return { itemsByList: { ...s.itemsByList, [id]: (s.itemsByList[id] ?? []).map((it) => it.id === itemId ? { ...it, category, updatedAt: Date.now() } : it) }, categoryPreferences: item ? { ...s.categoryPreferences, [normalize(item.name)]: category } : s.categoryPreferences }; }),
+  clearPurchased: () => set((s) => {
+    const id = s.activeListId; const removed = (s.itemsByList[id] ?? []).filter((it) => it.isPurchased); if (!removed.length) return s;
+    const entry: TrashEntry = { id: uid(), kind: 'items', label: `${removed.length} purchased item${removed.length === 1 ? '' : 's'}`, listId: id, items: removed, deletedAt: Date.now() };
+    return { itemsByList: { ...s.itemsByList, [id]: (s.itemsByList[id] ?? []).filter((it) => !it.isPurchased) }, lists: touch(s.lists, id), trash: [entry, ...s.trash].slice(0, 25) };
+  }),
+  restoreTrash: (trashId) => set((s) => {
+    const entry = trashId ? s.trash.find((t) => t.id === trashId) : s.trash[0]; if (!entry) return s;
+    if (entry.kind === 'list' && entry.list) return { lists: [...s.lists, entry.list], itemsByList: { ...s.itemsByList, [entry.listId]: entry.items }, trash: s.trash.filter((t) => t.id !== entry.id), activeListId: entry.listId };
+    return { itemsByList: { ...s.itemsByList, [entry.listId]: [...entry.items, ...(s.itemsByList[entry.listId] ?? [])] }, trash: s.trash.filter((t) => t.id !== entry.id) };
+  }),
+  dismissTrash: (id) => set((s) => ({ trash: s.trash.filter((t) => t.id !== id) })),
+  dismissOnboarding: () => set({ onboardingSeen: true }),
+  replaceFromCloud: (data) => set((s) => ({ ...data, activeListId: data.lists.some((l) => l.id === s.activeListId) ? s.activeListId : data.lists[0]?.id ?? s.activeListId })),
+}), {
+  name: 'coshop-store-v3', version: 3, storage: createJSONStorage(() => indexedDbStorage),
+  partialize: (s) => ({ lists: s.lists, itemsByList: s.itemsByList, stores: s.stores, trash: s.trash, categoryPreferences: s.categoryPreferences, activeListId: s.activeListId, onboardingSeen: s.onboardingSeen }),
+  onRehydrateStorage: () => () => { queueMicrotask(() => useShopStore.setState({ hydrated: true })); },
+  migrate: (persisted) => ({ ...initialState(), ...(persisted as Partial<ShopState>), hydrated: true }),
+}));
 
-export const useShopStore = create<ShopState>()(
-  persist(
-    (set, get) => ({
-      ...initialState(),
-
-      // ---- List actions ----
-      createList: (name) => {
-        const id = uid();
-        const now = Date.now();
-        set((state) => ({
-          lists: [
-            ...state.lists,
-            { id, name: name?.trim() || defaultListName(), createdAt: now, updatedAt: now },
-          ],
-          itemsByList: { ...state.itemsByList, [id]: [] },
-          activeListId: id,
-        }));
-        return id;
-      },
-
-      renameList: (id, name) =>
-        set((state) => ({
-          lists: state.lists.map((l) =>
-            l.id === id ? { ...l, name: name.trim() || l.name, updatedAt: Date.now() } : l,
-          ),
-        })),
-
-      duplicateList: (id) => {
-        const state = get();
-        const src = state.lists.find((l) => l.id === id);
-        if (!src) return id;
-        const newId = uid();
-        const now = Date.now();
-        const copyItems = (state.itemsByList[id] ?? []).map((it) => ({
-          ...it,
-          id: uid(),
-          isPurchased: false,
-          createdAt: Date.now(),
-        }));
-        set({
-          lists: [
-            ...state.lists,
-            { ...src, id: newId, name: `${src.name} (copy)`, createdAt: now, updatedAt: now },
-          ],
-          itemsByList: { ...state.itemsByList, [newId]: copyItems },
-          activeListId: newId,
-        });
-        return newId;
-      },
-
-      deleteList: (id) =>
-        set((state) => {
-          if (state.lists.length <= 1) return state; // never delete the last list
-          const lists = state.lists.filter((l) => l.id !== id);
-          const itemsByList = { ...state.itemsByList };
-          delete itemsByList[id];
-          const activeListId =
-            state.activeListId === id ? lists[0].id : state.activeListId;
-          return { lists, itemsByList, activeListId };
-        }),
-
-      setActiveList: (id) =>
-        set((state) =>
-          state.lists.some((l) => l.id === id) ? { activeListId: id } : state,
-        ),
-
-      setListBudget: (id, budget) =>
-        set((state) => ({
-          lists: state.lists.map((l) =>
-            l.id === id ? { ...l, budget, updatedAt: Date.now() } : l,
-          ),
-        })),
-
-      setListStore: (id, store) =>
-        set((state) => {
-          if (store === null) {
-            return {
-              lists: state.lists.map((l) =>
-                l.id === id ? { ...l, storeId: undefined, updatedAt: Date.now() } : l,
-              ),
-            };
-          }
-          // Reuse an existing store with the same name, else create one.
-          const existing = state.stores.find(
-            (s) => s.name.toLowerCase() === store.name.trim().toLowerCase(),
-          );
-          const storeId = existing?.id ?? uid();
-          const stores = existing
-            ? state.stores
-            : [...state.stores, { id: storeId, name: store.name.trim(), address: store.address }];
-          return {
-            stores,
-            lists: state.lists.map((l) =>
-              l.id === id ? { ...l, storeId, updatedAt: Date.now() } : l,
-            ),
-          };
-        }),
-
-      // ---- Item actions ----
-      addItem: (input) =>
-        set((state) => {
-          const id = state.activeListId;
-          const current = state.itemsByList[id] ?? [];
-          return {
-            itemsByList: { ...state.itemsByList, [id]: [buildItem(input), ...current] },
-            lists: touch(state.lists, id),
-          };
-        }),
-
-      toggleItemStatus: (itemId) =>
-        set((state) => {
-          const id = state.activeListId;
-          const current = state.itemsByList[id] ?? [];
-          return {
-            itemsByList: {
-              ...state.itemsByList,
-              [id]: current.map((it) =>
-                it.id === itemId ? { ...it, isPurchased: !it.isPurchased } : it,
-              ),
-            },
-          };
-        }),
-
-      updateItem: (itemId, patch) =>
-        set((state) => {
-          const id = state.activeListId;
-          const current = state.itemsByList[id] ?? [];
-          return {
-            itemsByList: {
-              ...state.itemsByList,
-              [id]: current.map((it) => (it.id === itemId ? { ...it, ...patch } : it)),
-            },
-            lists: touch(state.lists, id),
-          };
-        }),
-
-      deleteItem: (itemId) =>
-        set((state) => {
-          const id = state.activeListId;
-          const current = state.itemsByList[id] ?? [];
-          return {
-            itemsByList: { ...state.itemsByList, [id]: current.filter((it) => it.id !== itemId) },
-            lists: touch(state.lists, id),
-          };
-        }),
-
-      setItemCategory: (itemId, category) =>
-        set((state) => {
-          const id = state.activeListId;
-          const current = state.itemsByList[id] ?? [];
-          return {
-            itemsByList: {
-              ...state.itemsByList,
-              [id]: current.map((it) => (it.id === itemId ? { ...it, category } : it)),
-            },
-          };
-        }),
-
-      clearPurchased: () =>
-        set((state) => {
-          const id = state.activeListId;
-          const current = state.itemsByList[id] ?? [];
-          return {
-            itemsByList: { ...state.itemsByList, [id]: current.filter((it) => !it.isPurchased) },
-          };
-        }),
-
-      dismissOnboarding: () => set({ onboardingSeen: true }),
-    }),
-    {
-      name: 'coshop-store-v1', // storage key kept stable so v1 data migrates in place
-      version: 2,
-      storage: createJSONStorage(() => localStorage),
-      partialize: (state) => ({
-        lists: state.lists,
-        itemsByList: state.itemsByList,
-        stores: state.stores,
-        activeListId: state.activeListId,
-        onboardingSeen: state.onboardingSeen,
-      }),
-      migrate: (persisted, version) => migrateState(persisted, version),
-    },
-  ),
-);
-
-/* ----------------------------------------------------------------------------
-   Migration — fold the old single-list v1 shape into the multi-list v2 shape.
-   -------------------------------------------------------------------------- */
-
-interface LegacyItem {
-  id: string;
-  name: string;
-  store?: string;
-  price?: number;
-  quantity?: number;
-  isPurchased?: boolean;
-  photoBase64?: string;
-  createdAt?: number;
-}
-interface LegacyState {
-  list?: { id?: string; weekName?: string; budget?: number };
-  items?: LegacyItem[];
+// One-time localStorage -> IndexedDB migration. Zustand v1/v2 payloads retain their IDs.
+if (typeof window !== 'undefined' && legacyLocalState() && !localStorage.getItem('coshop-idb-migrated')) {
+  try {
+    const legacy = JSON.parse(legacyLocalState()!);
+    const state = legacy.state as Partial<ShopState> | undefined;
+    if (state?.lists?.length) {
+      const itemsByList = { ...(state.itemsByList ?? {}) };
+      void (async () => {
+        for (const [listId, items] of Object.entries(itemsByList)) {
+          itemsByList[listId] = await Promise.all(items.map(async (item) => {
+            const photoRef = item.photoBase64 ? await saveImage(item.photoBase64) : item.photoRef;
+            const { photoBase64: _legacyPhoto, ...clean } = item;
+            return { ...clean, photoRef, updatedAt: item.updatedAt ?? item.createdAt ?? Date.now() };
+          }));
+        }
+        const upgraded = { ...initialState(), ...state, itemsByList, lists: state.lists!.map((l) => ({ ...l, currency: l.currency ?? 'USD', updatedAt: l.updatedAt ?? l.createdAt ?? Date.now() })), hydrated: true };
+        await Promise.resolve(indexedDbStorage.setItem('coshop-store-v3', JSON.stringify({ state: upgraded, version: 3 })));
+        localStorage.setItem('coshop-idb-migrated', '1'); clearLegacyLocalState(); window.location.reload();
+      })();
+    }
+  } catch { /* Invalid legacy state is left untouched for manual recovery/export. */ }
 }
 
-function migrateState(persisted: unknown, version: number) {
-  // Already current (or newer) — pass through.
-  if (version >= 2 || !persisted || typeof persisted !== 'object') {
-    return persisted as Partial<ShopState>;
-  }
-
-  const legacy = persisted as LegacyState;
-  const listId = legacy.list?.id ?? uid();
-  const now = Date.now();
-
-  const items: ShoppingItem[] = (legacy.items ?? []).map((it, i) => {
-    const resolved = resolveItem(it.name ?? '');
-    return {
-      id: it.id ?? uid(),
-      name: it.name ?? resolved.name,
-      catalogId: resolved.catalogId,
-      category: resolved.category,
-      price: typeof it.price === 'number' ? it.price : undefined,
-      quantity: Math.max(1, it.quantity ?? 1),
-      isPurchased: Boolean(it.isPurchased),
-      photoBase64: it.photoBase64,
-      createdAt: it.createdAt ?? now + i,
-    };
-  });
-
-  // If every legacy item shared one store, lift it to a list-level store tag.
-  const legacyStores = [...new Set((legacy.items ?? []).map((it) => it.store).filter(Boolean))];
-  const stores: Store[] = [];
-  let storeId: string | undefined;
-  if (legacyStores.length === 1) {
-    storeId = uid();
-    stores.push({ id: storeId, name: legacyStores[0] as string });
-  }
-
-  const list: ShoppingList = {
-    id: listId,
-    name: legacy.list?.weekName ?? defaultListName(),
-    budget: legacy.list?.budget ?? 120,
-    storeId,
-    createdAt: now,
-    updatedAt: now,
-  };
-
-  return {
-    lists: [list],
-    itemsByList: { [listId]: items },
-    stores,
-    activeListId: listId,
-    onboardingSeen: true, // returning users skip onboarding
-  } as Partial<ShopState>;
-}
-
-/* ----------------------------------------------------------------------------
-   Selectors — operate on the ACTIVE list. Missing price counts as 0.
-   -------------------------------------------------------------------------- */
-
-/** Items belonging to the currently active list. */
-export const selectActiveItems = (s: ShopState): ShoppingItem[] =>
-  s.itemsByList[s.activeListId] ?? [];
-
-/** The currently active list object. */
-export const selectActiveList = (s: ShopState): ShoppingList | undefined =>
-  s.lists.find((l) => l.id === s.activeListId);
-
-/** The store tagged on the active list, if any. */
-export const selectActiveStore = (s: ShopState): Store | undefined => {
-  const list = selectActiveList(s);
-  return list?.storeId ? s.stores.find((st) => st.id === list.storeId) : undefined;
-};
-
-const lineCost = (it: ShoppingItem): number => (it.price ?? 0) * it.quantity;
-
-/** Sum of (price * quantity) where isPurchased === true (active list). */
-export const selectInCartTotal = (s: ShopState): number =>
-  selectActiveItems(s).reduce((sum, it) => (it.isPurchased ? sum + lineCost(it) : sum), 0);
-
-/** Sum of (price * quantity) across ALL items in the active list (the estimate). */
-export const selectEstimatedTotal = (s: ShopState): number =>
-  selectActiveItems(s).reduce((sum, it) => sum + lineCost(it), 0);
+export const selectActiveItems = (s: ShopState) => s.itemsByList[s.activeListId] ?? [];
+export const selectActiveList = (s: ShopState) => s.lists.find((l) => l.id === s.activeListId);
+export const selectActiveStore = (s: ShopState) => { const list = selectActiveList(s); return list?.storeId ? s.stores.find((store) => store.id === list.storeId) : undefined; };
+const lineCost = (item: ShoppingItem) => typeof item.price === 'number' ? item.price * item.quantity : 0;
+export const selectInCartTotal = (s: ShopState) => selectActiveItems(s).reduce((sum, item) => item.isPurchased ? sum + lineCost(item) : sum, 0);
+export const selectEstimatedTotal = (s: ShopState) => selectActiveItems(s).reduce((sum, item) => sum + lineCost(item), 0);
+export const selectPriceCoverage = (s: ShopState) => { const items = selectActiveItems(s); const priced = items.filter((item) => typeof item.price === 'number'); return { priced: priced.length, total: items.length, missing: items.length - priced.length }; };

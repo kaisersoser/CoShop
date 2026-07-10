@@ -5,6 +5,7 @@ import {
   selectInCartTotal,
   selectEstimatedTotal,
   selectActiveList,
+  selectPriceCoverage,
 } from '../store/store';
 import './CostFooter.css';
 
@@ -18,7 +19,10 @@ import './CostFooter.css';
    ========================================================================== */
 
 export function CostFooter() {
-  const budget = useShopStore((s) => selectActiveList(s)?.budget) ?? 0;
+  const activeList = useShopStore(selectActiveList);
+  const budget = activeList?.budget ?? 0;
+  const currency = activeList?.currency ?? 'USD';
+  const coverage = useShopStore(selectPriceCoverage);
   const inCartTotal = useShopStore(selectInCartTotal);
   const estimatedTotal = useShopStore(selectEstimatedTotal);
 
@@ -37,11 +41,13 @@ export function CostFooter() {
       : remaining < budget * 0.1
         ? 'var(--warning)'
         : 'var(--success)';
+  const money = (value: number) => new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(value);
 
   return (
     <footer className="cost-footer glass-strong" role="status" aria-live="polite">
       {/* Progress bar — visualises spend vs budget */}
-      <div className="cost-footer__progress-track" aria-hidden="true">
+      {coverage.missing > 0 && <p className="cost-footer__coverage">Partial estimate · {coverage.missing} of {coverage.total} item{coverage.total === 1 ? '' : 's'} missing a price</p>}
+      <div className="cost-footer__progress-track" aria-label={hasBudget ? `${money(inCartTotal)} of ${money(budget)} budget used` : undefined} role={hasBudget ? 'progressbar' : undefined} aria-valuemin={hasBudget ? 0 : undefined} aria-valuemax={hasBudget ? budget : undefined} aria-valuenow={hasBudget ? inCartTotal : undefined}>
         <div
           className={`cost-footer__progress-fill ${overBudget ? 'cost-footer__progress-fill--over' : ''}`}
           style={{ width: `${progressPct}%` }}
@@ -52,20 +58,20 @@ export function CostFooter() {
         <Stat
           icon={<ShoppingCart size={16} />}
           label="In Cart"
-          value={`$${inCartTotal.toFixed(2)}`}
+          value={money(inCartTotal)}
           tone="primary"
         />
         <Divider />
         <Stat
           icon={<Receipt size={16} />}
-          label="Estimated"
-          value={`$${estimatedTotal.toFixed(2)}`}
+          label={coverage.missing ? 'Known total' : 'Estimated'}
+          value={money(estimatedTotal)}
         />
         <Divider />
         <Stat
           icon={overBudget ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
           label={!hasBudget ? 'Remaining' : overBudget ? 'Over by' : 'Remaining'}
-          value={hasBudget ? `${overBudget ? '-' : ''}$${Math.abs(remaining).toFixed(2)}` : '—'}
+          value={hasBudget ? `${overBudget ? '-' : ''}${money(Math.abs(remaining))}` : '—'}
           valueColor={remainingColor}
         />
       </div>

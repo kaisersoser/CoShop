@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Plus, X, Search, Tag } from 'lucide-react';
+import { Plus, X, Search, Tag, SlidersHorizontal } from 'lucide-react';
 import { useShopStore } from '../store/store';
 import { searchCatalog } from '../lib/catalog';
 import { resolveItem } from '../lib/categorize';
@@ -23,9 +23,11 @@ interface Chosen {
 export function AddItemComposer({ onClose }: ComposerProps) {
   const addItem = useShopStore((s) => s.addItem);
 
-  const [name, setName] = useState('');
-  const [price, setPrice] = useState('');
-  const [quantity, setQuantity] = useState('1');
+  const draft = (() => { try { return JSON.parse(sessionStorage.getItem('coshop-item-draft') ?? '{}'); } catch { return {}; } })();
+  const [name, setName] = useState<string>(draft.name ?? '');
+  const [price, setPrice] = useState<string>(draft.price ?? '');
+  const [quantity, setQuantity] = useState<string>(draft.quantity ?? '1');
+  const [detailsOpen, setDetailsOpen] = useState(Boolean(draft.price || (draft.quantity && draft.quantity !== '1')));
   const [chosen, setChosen] = useState<Chosen | null>(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [highlight, setHighlight] = useState(0);
@@ -34,6 +36,10 @@ export function AddItemComposer({ onClose }: ComposerProps) {
   useEffect(() => {
     nameRef.current?.focus();
   }, []);
+
+  useEffect(() => {
+    sessionStorage.setItem('coshop-item-draft', JSON.stringify({ name, price, quantity }));
+  }, [name, price, quantity]);
 
   // Esc closes the composer.
   useEffect(() => {
@@ -69,6 +75,7 @@ export function AddItemComposer({ onClose }: ComposerProps) {
     setName(productName);
     setChosen({ catalogId, category });
     setShowSuggestions(false);
+    sessionStorage.removeItem('coshop-item-draft');
     nameRef.current?.focus();
   };
 
@@ -104,14 +111,8 @@ export function AddItemComposer({ onClose }: ComposerProps) {
         setHighlight((h) => (h - 1 + suggestions.length) % suggestions.length);
         return;
       }
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        const s = suggestions[highlight];
-        pick(s.product.id, s.product.name, s.product.category);
-        return;
-      }
     }
-    if (e.key === 'Enter') submit();
+    if (e.key === 'Enter') { e.preventDefault(); submit(); }
   };
 
   const previewCategory = previewCategoryId ? getCategory(previewCategoryId) : null;
@@ -145,13 +146,15 @@ export function AddItemComposer({ onClose }: ComposerProps) {
               onFocus={() => !chosen && setShowSuggestions(true)}
               placeholder="Search products, e.g. bananas"
               onKeyDown={onNameKeyDown}
+              role="combobox"
               aria-autocomplete="list"
               aria-expanded={showSuggestions && suggestions.length > 0}
+              aria-controls="item-suggestions"
             />
           </div>
 
           {showSuggestions && suggestions.length > 0 && (
-            <ul className="autocomplete-list glass" role="listbox">
+            <ul id="item-suggestions" className="autocomplete-list glass" role="listbox">
               {suggestions.map((s, i) => {
                 const cat = getCategory(s.product.category);
                 return (
@@ -181,7 +184,8 @@ export function AddItemComposer({ onClose }: ComposerProps) {
           </div>
         )}
 
-        <div className="composer__row">
+        <button type="button" className="btn-ghost composer__details-toggle" onClick={() => setDetailsOpen((open) => !open)} aria-expanded={detailsOpen}><SlidersHorizontal size={15} /> {detailsOpen ? 'Hide details' : 'Add price or quantity'}</button>
+        {detailsOpen && <div className="composer__row">
           <div className="composer__field-group">
             <label className="composer__label">Unit price (optional)</label>
             <input
@@ -207,7 +211,7 @@ export function AddItemComposer({ onClose }: ComposerProps) {
               onKeyDown={(e) => e.key === 'Enter' && submit()}
             />
           </div>
-        </div>
+        </div>}
 
         <button
           className="btn-primary composer__submit"
