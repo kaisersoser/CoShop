@@ -1,0 +1,20 @@
+{
+  "pkg": "coshop",
+  "globalName": "CoShop",
+  "projectId": "4afdbf72-9644-4e74-9134-9b547d466fd6",
+  "shape": "package",
+  "srcDir": "src",
+  "cssEntry": "src/index.css",
+  "runtimeFontPrefixes": ["Inter"],
+  "tsconfig": "tsconfig.json",
+  "componentSrcMap": {
+    "ShoppingList": "src/components/ShoppingList.tsx",
+    "CostFooter":   "src/components/CostFooter.tsx",
+    "ItemRow":      "src/components/ItemRow.tsx"
+  },
+  "overrides": {
+    "CostFooter": { "cardMode": "single", "primaryStory": "BudgetSummary" }
+  },
+  "readmeHeader": ".design-sync/conventions.md",
+  "guidelinesGlob": ["docs/design/**/*.md"]
+}
