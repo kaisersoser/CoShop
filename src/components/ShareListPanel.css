@@ -1,0 +1,19 @@
+.share-panel { gap: var(--sp-4); }
+.share-panel .modal__head { margin-bottom: 0; }
+.share-panel .modal__head h3 { display: flex; align-items: center; gap: var(--sp-2); font-size: var(--fs-lg); }
+.share-panel__intro { color: var(--text-secondary); font-size: var(--fs-sm); line-height: 1.5; }
+.share-panel__roles { display: grid; gap: var(--sp-2); border: 0; }
+.share-panel__roles legend { margin-bottom: var(--sp-2); color: var(--text-secondary); font-size: var(--fs-sm); font-weight: 700; }
+.share-panel__roles label { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-3); border: 1px solid var(--glass-border); border-radius: var(--r-md); cursor: pointer; }
+.share-panel__roles label.share-panel__role--active { border-color: var(--accent-1); background: var(--accent-grad-soft); }
+.share-panel__roles label span { display: flex; flex-direction: column; gap: 2px; }
+.share-panel__roles small, .share-panel__ready span, .share-panel__sms small { color: var(--text-tertiary); }
+.share-panel__ready { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-3); border-radius: var(--r-md); background: var(--success-soft); color: var(--success); }
+.share-panel__ready > div { display: flex; flex-direction: column; gap: 2px; }
+.share-panel__channels { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: var(--sp-2); }
+.share-panel__channels button { justify-content: center; }
+.share-panel__sms { display: flex; flex-direction: column; gap: var(--sp-2); }
+.share-panel__sms label { color: var(--text-secondary); font-size: var(--fs-sm); font-weight: 700; }
+.share-panel__sms label span { color: var(--text-tertiary); font-weight: 400; }
+.share-panel__link { font-size: var(--fs-xs); }
+@media (max-width: 420px) { .share-panel__channels { grid-template-columns: 1fr; } }

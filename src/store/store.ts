@@ -29,9 +29,12 @@ export interface ShoppingList {
   storeId?: string;
   createdAt: number;
   updatedAt: number;
+  /** Remote authorization metadata; absent for guest-only lists. */
+  remoteHouseholdId?: string;
+  accessRole?: 'owner' | 'editor' | 'viewer';
 }
 
-export interface Store { id: string; name: string; address?: string; }
+export interface Store { id: string; name: string; address?: string; remoteHouseholdId?: string; }
 export interface AddItemInput {
   name: string;
   catalogId?: string;
@@ -130,39 +133,45 @@ export const useShopStore = create<ShopState>()(persist((set, get) => ({
     set((s) => ({ lists: [...s.lists, { id, name: name?.trim() || defaultListName(), currency: 'USD', createdAt: now, updatedAt: now }], itemsByList: { ...s.itemsByList, [id]: [] }, activeListId: id }));
     return id;
   },
-  renameList: (id, name) => set((s) => ({ lists: s.lists.map((l) => l.id === id ? { ...l, name: name.trim() || l.name, updatedAt: Date.now() } : l) })),
+  renameList: (id, name) => set((s) => ({ lists: s.lists.map((l) => l.id === id && l.accessRole !== 'viewer' ? { ...l, name: name.trim() || l.name, updatedAt: Date.now() } : l) })),
   duplicateList: (id) => {
     const s = get(); const source = s.lists.find((l) => l.id === id); if (!source) return id;
     const newId = uid(); const now = Date.now();
     const items = (s.itemsByList[id] ?? []).map((item) => ({ ...item, id: uid(), isPurchased: false, createdAt: now, updatedAt: now }));
-    set({ lists: [...s.lists, { ...source, id: newId, name: `${source.name} (copy)`, createdAt: now, updatedAt: now }], itemsByList: { ...s.itemsByList, [newId]: items }, activeListId: newId });
+    const { remoteHouseholdId: _remoteHouseholdId, accessRole: _accessRole, ...localSource } = source;
+    set({ lists: [...s.lists, { ...localSource, id: newId, name: `${source.name} (copy)`, createdAt: now, updatedAt: now }], itemsByList: { ...s.itemsByList, [newId]: items }, activeListId: newId });
     return newId;
   },
   deleteList: (id) => set((s) => {
     if (s.lists.length <= 1) return s;
     const list = s.lists.find((l) => l.id === id); if (!list) return s;
+    if (list.remoteHouseholdId && list.accessRole !== 'owner') return s;
     const entry: TrashEntry = { id: uid(), kind: 'list', label: list.name, list, listId: id, items: s.itemsByList[id] ?? [], deletedAt: Date.now() };
     const lists = s.lists.filter((l) => l.id !== id); const itemsByList = { ...s.itemsByList }; delete itemsByList[id];
     return { lists, itemsByList, trash: [entry, ...s.trash].slice(0, 25), activeListId: s.activeListId === id ? lists[0].id : s.activeListId };
   }),
   setActiveList: (id) => set((s) => s.lists.some((l) => l.id === id) ? { activeListId: id } : s),
-  setListBudget: (id, budget) => set((s) => ({ lists: s.lists.map((l) => l.id === id ? { ...l, budget, updatedAt: Date.now() } : l) })),
+  setListBudget: (id, budget) => set((s) => ({ lists: s.lists.map((l) => l.id === id && l.accessRole !== 'viewer' ? { ...l, budget, updatedAt: Date.now() } : l) })),
   setListStore: (id, input) => set((s) => {
+    const target = s.lists.find((list) => list.id === id);
+    if (target?.remoteHouseholdId && target.accessRole !== 'owner') return s;
     if (!input) return { lists: s.lists.map((l) => l.id === id ? { ...l, storeId: undefined, updatedAt: Date.now() } : l) };
     const existing = s.stores.find((store) => normalize(store.name) === normalize(input.name)); const storeId = existing?.id ?? uid();
     return { stores: existing ? s.stores : [...s.stores, { id: storeId, name: input.name.trim(), address: input.address }], lists: s.lists.map((l) => l.id === id ? { ...l, storeId, updatedAt: Date.now() } : l) };
   }),
-  addItem: (input) => set((s) => { const id = s.activeListId; return { itemsByList: { ...s.itemsByList, [id]: [buildItem(input, s.categoryPreferences), ...(s.itemsByList[id] ?? [])] }, lists: touch(s.lists, id), onboardingSeen: true }; }),
-  toggleItemStatus: (itemId) => set((s) => { const id = s.activeListId; return { itemsByList: { ...s.itemsByList, [id]: (s.itemsByList[id] ?? []).map((it) => it.id === itemId ? { ...it, isPurchased: !it.isPurchased, updatedAt: Date.now() } : it) }, lists: touch(s.lists, id) }; }),
-  updateItem: (itemId, patch) => set((s) => { const id = s.activeListId; return { itemsByList: { ...s.itemsByList, [id]: (s.itemsByList[id] ?? []).map((it) => it.id === itemId ? { ...it, ...patch, updatedAt: Date.now() } : it) }, lists: touch(s.lists, id) }; }),
+  addItem: (input) => set((s) => { const id = s.activeListId; if (s.lists.find((list) => list.id === id)?.accessRole === 'viewer') return s; return { itemsByList: { ...s.itemsByList, [id]: [buildItem(input, s.categoryPreferences), ...(s.itemsByList[id] ?? [])] }, lists: touch(s.lists, id), onboardingSeen: true }; }),
+  toggleItemStatus: (itemId) => set((s) => { const id = s.activeListId; if (s.lists.find((list) => list.id === id)?.accessRole === 'viewer') return s; return { itemsByList: { ...s.itemsByList, [id]: (s.itemsByList[id] ?? []).map((it) => it.id === itemId ? { ...it, isPurchased: !it.isPurchased, updatedAt: Date.now() } : it) }, lists: touch(s.lists, id) }; }),
+  updateItem: (itemId, patch) => set((s) => { const id = s.activeListId; if (s.lists.find((list) => list.id === id)?.accessRole === 'viewer') return s; return { itemsByList: { ...s.itemsByList, [id]: (s.itemsByList[id] ?? []).map((it) => it.id === itemId ? { ...it, ...patch, updatedAt: Date.now() } : it) }, lists: touch(s.lists, id) }; }),
   deleteItem: (itemId) => set((s) => {
     const id = s.activeListId; const item = (s.itemsByList[id] ?? []).find((it) => it.id === itemId); if (!item) return s;
+    if (s.lists.find((list) => list.id === id)?.accessRole === 'viewer') return s;
     const entry: TrashEntry = { id: uid(), kind: 'item', label: item.name, listId: id, items: [item], deletedAt: Date.now() };
     return { itemsByList: { ...s.itemsByList, [id]: (s.itemsByList[id] ?? []).filter((it) => it.id !== itemId) }, lists: touch(s.lists, id), trash: [entry, ...s.trash].slice(0, 25) };
   }),
-  setItemCategory: (itemId, category) => set((s) => { const id = s.activeListId; const item = (s.itemsByList[id] ?? []).find((it) => it.id === itemId); return { itemsByList: { ...s.itemsByList, [id]: (s.itemsByList[id] ?? []).map((it) => it.id === itemId ? { ...it, category, updatedAt: Date.now() } : it) }, categoryPreferences: item ? { ...s.categoryPreferences, [normalize(item.name)]: category } : s.categoryPreferences }; }),
+  setItemCategory: (itemId, category) => set((s) => { const id = s.activeListId; if (s.lists.find((list) => list.id === id)?.accessRole === 'viewer') return s; const item = (s.itemsByList[id] ?? []).find((it) => it.id === itemId); return { itemsByList: { ...s.itemsByList, [id]: (s.itemsByList[id] ?? []).map((it) => it.id === itemId ? { ...it, category, updatedAt: Date.now() } : it) }, categoryPreferences: item ? { ...s.categoryPreferences, [normalize(item.name)]: category } : s.categoryPreferences }; }),
   clearPurchased: () => set((s) => {
     const id = s.activeListId; const removed = (s.itemsByList[id] ?? []).filter((it) => it.isPurchased); if (!removed.length) return s;
+    if (s.lists.find((list) => list.id === id)?.accessRole === 'viewer') return s;
     const entry: TrashEntry = { id: uid(), kind: 'items', label: `${removed.length} purchased item${removed.length === 1 ? '' : 's'}`, listId: id, items: removed, deletedAt: Date.now() };
     return { itemsByList: { ...s.itemsByList, [id]: (s.itemsByList[id] ?? []).filter((it) => !it.isPurchased) }, lists: touch(s.lists, id), trash: [entry, ...s.trash].slice(0, 25) };
   }),
@@ -207,6 +216,7 @@ if (typeof window !== 'undefined' && legacyLocalState() && !localStorage.getItem
 export const selectActiveItems = (s: ShopState) => s.itemsByList[s.activeListId] ?? [];
 export const selectActiveList = (s: ShopState) => s.lists.find((l) => l.id === s.activeListId);
 export const selectActiveStore = (s: ShopState) => { const list = selectActiveList(s); return list?.storeId ? s.stores.find((store) => store.id === list.storeId) : undefined; };
+export const selectCanEditActive = (s: ShopState) => selectActiveList(s)?.accessRole !== 'viewer';
 const lineCost = (item: ShoppingItem) => typeof item.price === 'number' ? item.price * item.quantity : 0;
 export const selectInCartTotal = (s: ShopState) => selectActiveItems(s).reduce((sum, item) => item.isPurchased ? sum + lineCost(item) : sum, 0);
 export const selectEstimatedTotal = (s: ShopState) => selectActiveItems(s).reduce((sum, item) => sum + lineCost(item), 0);

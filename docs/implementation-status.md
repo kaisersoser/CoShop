@@ -10,6 +10,8 @@ Updated 10 July 2026. This is the evidence ledger for the production-readiness p
 - Locale-aware money, optional budgets, and explicit coverage whenever prices are missing.
 - Installable offline PWA, responsive/zoomable UI, desktop/mobile browser tests, offline restart test, and serious/critical Axe gate.
 - Supabase email-link authentication, guest-first account prompt, household bootstrap/invites, Realtime changes, idempotent timestamp reconciliation, offline retry, private remote photos, and RLS isolation.
+- List-scoped, expiring single-use invitations with viewer/editor roles, native mobile sharing,
+  copy/SMS/WhatsApp/Telegram fallbacks, secure join previews, and feature-flagged phone/WhatsApp OTP UI.
 - Versioned database migrations, generated client types, private Storage policy, security/performance advisor pass review, and executable cross-household RLS test.
 - GitHub CI, zero known npm audit vulnerabilities, Vercel security headers, error recovery boundary, privacy notice, and incident/rollback runbook.
 
@@ -19,7 +21,9 @@ Updated 10 July 2026. This is the evidence ledger for the production-readiness p
 - `npm run test:e2e`: guest value flow, accessibility, offline restart, and deployment-mode tests pass on desktop and mobile Chromium.
 - `npm run cap:sync`: Capacitor 8 web sync passes.
 - `supabase/tests/rls.sql`: connected project returned only the acting household and raised no isolation failure.
-- Supabase security advisor: anonymous SECURITY DEFINER grants removed. Remaining signed-in warnings are intentional for authenticated bootstrap/invite and RLS helper functions.
+- Supabase security advisor: administrative anonymous grants are removed. The remaining anonymous
+  warning is the intentionally public, token-gated invitation preview; signed-in warnings are the
+  authenticated bootstrap/invitation and RLS helper functions exercised by the isolation suite.
 - Production smoke suite passes at <https://coshop.vercel.app> with Supabase client configuration present.
 
 ## Open production gates
@@ -27,6 +31,8 @@ Updated 10 July 2026. This is the evidence ledger for the production-readiness p
 These are not represented as complete:
 
 - Owner transfer, invite revocation, household leave/delete, and self-service cloud-account deletion UI.
+- SMS provider selection, fraud/cost controls, sender registration, and production activation of
+  phone/WhatsApp OTP; phone authentication remains off until these operational controls exist.
 - Automated 30-day tombstone/media purge job and restore UI beyond the local undo window.
 - Multi-device conflict/failure soak testing with two real authenticated accounts and network fault injection.
 - A selected error/analytics provider, operational dashboards, alert routing, and formal staging/alpha exit evidence.

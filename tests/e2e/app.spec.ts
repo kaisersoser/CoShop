@@ -41,3 +41,19 @@ test('backup panel communicates the active deployment mode', async ({ page }) =>
   }
   await expect(page.getByRole('link', { name: 'Privacy notice' })).toHaveAttribute('href', '/privacy.html');
 });
+
+test('list sharing names its scope without requesting contacts', async ({ page }) => {
+  await page.getByRole('button', { name: 'Share current list' }).click();
+  await expect(page.getByRole('heading', { name: /Share “.+”/ })).toBeVisible();
+  await expect(page.getByText('CoShop will not request your contacts or see who you message.')).toBeVisible();
+  if (new URL(page.url()).hostname.endsWith('vercel.app')) await expect(page.getByLabel('Email for a secure sign-in link')).toBeVisible();
+  else await expect(page.getByText('Cloud sharing is not configured for this deployment.')).toBeVisible();
+  const results = await new AxeBuilder({ page }).analyze();
+  expect(results.violations.filter((violation) => ['serious', 'critical'].includes(violation.impact ?? ''))).toEqual([]);
+});
+
+test('invalid invitation reveals no list contents', async ({ page }) => {
+  await page.goto('/join/not-a-real-token');
+  await expect(page.getByRole('heading', { name: 'Invitation unavailable' })).toBeVisible();
+  await expect(page.getByText('invalid, expired, revoked, or has already been used', { exact: false })).toBeVisible();
+});

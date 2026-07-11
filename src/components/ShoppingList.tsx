@@ -16,7 +16,7 @@ import './ShoppingList.css';
 const orderedCategories = (buckets: Record<string, ShoppingItem[]>): string[] =>
   Object.keys(buckets).sort((a, b) => categoryOrder(a) - categoryOrder(b));
 
-export function ShoppingList({ onAdd }: { onAdd: () => void }) {
+export function ShoppingList({ onAdd, canEdit = true }: { onAdd: () => void; canEdit?: boolean }) {
   const items = useShopStore(selectActiveItems);
   const clearPurchased = useShopStore((s) => s.clearPurchased);
 
@@ -40,7 +40,7 @@ export function ShoppingList({ onAdd }: { onAdd: () => void }) {
   }, [items]);
 
   if (items.length === 0) {
-    return <EmptyState onAdd={onAdd} />;
+    return <EmptyState onAdd={onAdd} canEdit={canEdit} />;
   }
 
   return (
@@ -53,7 +53,7 @@ export function ShoppingList({ onAdd }: { onAdd: () => void }) {
       <SectionHeader icon={<PackageOpen size={16} />} title="Pending" count={pendingCount} />
       <div className="shopping-list__groups">
         {orderedCategories(pendingByCat).map((cat) => (
-          <CategoryGroup key={`p-${cat}`} category={cat} items={pendingByCat[cat]} />
+          <CategoryGroup key={`p-${cat}`} category={cat} items={pendingByCat[cat]} canEdit={canEdit} />
         ))}
       </div>
 
@@ -61,7 +61,7 @@ export function ShoppingList({ onAdd }: { onAdd: () => void }) {
         <div className="shopping-list__all-done glass">
           <CheckCircle2 size={28} className="text-grad-svg" />
           <p>All items in cart. Nice shopping!</p>
-          <button className="btn-ghost" onClick={onAdd}>Add another item</button>
+          {canEdit && <button className="btn-ghost" onClick={onAdd}>Add another item</button>}
         </div>
       )}
 
@@ -72,19 +72,17 @@ export function ShoppingList({ onAdd }: { onAdd: () => void }) {
             icon={<CheckCircle2 size={16} />}
             title="Purchased"
             count={purchasedCount}
-            action={
-              <button
+            action={canEdit ? <button
                 className="btn-ghost shopping-list__clear"
                 onClick={clearPurchased}
                 aria-label="Clear purchased items"
               >
                 <Trash2 size={14} /> Clear
-              </button>
-            }
+              </button> : undefined}
           />
           <div className="shopping-list__groups shopping-list__groups--done">
             {orderedCategories(purchasedByCat).map((cat) => (
-              <CategoryGroup key={`d-${cat}`} category={cat} items={purchasedByCat[cat]} dimmed />
+              <CategoryGroup key={`d-${cat}`} category={cat} items={purchasedByCat[cat]} dimmed canEdit={canEdit} />
             ))}
           </div>
         </>
@@ -100,9 +98,10 @@ interface CategoryGroupProps {
   category: string;
   items: ShoppingItem[];
   dimmed?: boolean;
+  canEdit: boolean;
 }
 
-function CategoryGroup({ category, items, dimmed }: CategoryGroupProps) {
+function CategoryGroup({ category, items, dimmed, canEdit }: CategoryGroupProps) {
   const meta = getCategory(category);
   return (
     <section className={`store-group glass ${dimmed ? 'store-group--dimmed' : ''}`}>
@@ -117,7 +116,7 @@ function CategoryGroup({ category, items, dimmed }: CategoryGroupProps) {
       </header>
       <ul className="store-group__items">
         {items.map((item) => (
-          <ItemRow key={item.id} item={item} />
+          <ItemRow key={item.id} item={item} canEdit={canEdit} />
         ))}
       </ul>
     </section>
@@ -149,15 +148,15 @@ function SectionHeader({ icon, title, count, action }: SectionHeaderProps) {
 /* ----------------------------------------------------------------------------
    Empty state
    -------------------------------------------------------------------------- */
-function EmptyState({ onAdd }: { onAdd: () => void }) {
+function EmptyState({ onAdd, canEdit }: { onAdd: () => void; canEdit: boolean }) {
   return (
     <div className="empty-state glass">
       <div className="empty-state__icon">
         <PackageOpen size={36} />
       </div>
       <h2>Your list is empty</h2>
-      <p>Tap the + button to add your first item. CoShop works offline, so you can shop anywhere.</p>
-      <button className="btn-primary" onClick={onAdd}>Add first item</button>
+      <p>{canEdit ? 'Tap the + button to add your first item. CoShop works offline, so you can shop anywhere.' : 'This shared list does not have any items yet.'}</p>
+      {canEdit && <button className="btn-primary" onClick={onAdd}>Add first item</button>}
     </div>
   );
 }

@@ -14,4 +14,12 @@
 .sync-dot--synced { background: var(--success); }.sync-dot--syncing { background: var(--warning); animation: pulse-soft 1s infinite; }.sync-dot--error, .sync-dot--offline { background: var(--danger); }
 .account-panel__feedback { color: var(--text-secondary); background: var(--accent-grad-soft); border-radius: var(--r-sm); padding: var(--sp-3); font-size: var(--fs-sm); }
 .invite-code { overflow-wrap: anywhere; color: var(--accent-bright); }
+.auth-form { display: flex; flex-direction: column; gap: var(--sp-3); }
+.auth-form__tabs { display: grid; grid-template-columns: 1fr 1fr; padding: 3px; gap: 3px; border-radius: var(--r-sm); background: rgba(240,253,244,.05); }
+.auth-form__tabs button { display: flex; align-items: center; justify-content: center; gap: var(--sp-2); padding: var(--sp-2); color: var(--text-tertiary); border-radius: 6px; }
+.auth-form__tabs .auth-form__tab--active { color: var(--text-primary); background: var(--bg-elev-3); }
+.auth-form small { color: var(--text-tertiary); line-height: 1.4; }
+.auth-form__channel { display: flex; gap: var(--sp-4); color: var(--text-secondary); font-size: var(--fs-sm); }
+.auth-form__channel label { display: flex; align-items: center; gap: var(--sp-2); }
+.auth-form__resend { align-self: flex-start; }
 @media (max-width: 520px) { .account-panel__row { align-items: stretch; flex-direction: column; } }

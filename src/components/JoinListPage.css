@@ -1,0 +1,14 @@
+.join-page { min-height: 100dvh; display: grid; place-items: center; padding: var(--sp-5); }
+.join-card { width: min(100%, 480px); display: flex; flex-direction: column; align-items: stretch; gap: var(--sp-4); padding: var(--sp-6); border-radius: var(--r-xl); }
+.join-card > svg, .join-card__icon { align-self: center; color: var(--accent-bright); }
+.join-card__brand { display: flex; align-items: center; justify-content: center; gap: var(--sp-2); color: var(--accent-bright); font-weight: 800; }
+.join-card__icon { width: 64px; height: 64px; display: grid; place-items: center; border-radius: 50%; background: var(--accent-grad-soft); }
+.join-card h1 { text-align: center; font-size: var(--fs-xl); }
+.join-card > p { color: var(--text-secondary); font-size: var(--fs-sm); line-height: 1.5; }
+.join-card__scope { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-4); border: 1px solid var(--glass-border); border-radius: var(--r-md); background: rgba(240,253,244,.04); }
+.join-card__scope > div { display: flex; flex-direction: column; gap: 3px; }
+.join-card__scope span { color: var(--text-secondary); font-size: var(--fs-sm); }
+.join-card__expiry { text-align: center; color: var(--text-tertiary) !important; }
+.join-card__accept { justify-content: center; padding: var(--sp-3); }
+.join-card__decline { align-self: center; color: var(--text-tertiary); font-size: var(--fs-sm); }
+.join-card .btn-ghost { align-self: center; }

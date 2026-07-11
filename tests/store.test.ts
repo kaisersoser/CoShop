@@ -33,4 +33,11 @@ describe('shopping state', () => {
     useShopStore.getState().restoreTrash();
     expect(useShopStore.getState().itemsByList['test-list'][0].id).toBe(id);
   });
+  it('does not mutate a view-only shared list', () => {
+    useShopStore.setState((state) => ({ lists: state.lists.map((list) => ({ ...list, accessRole: 'viewer' as const, remoteHouseholdId: 'remote-household' })) }));
+    useShopStore.getState().addItem({ name: 'Should not be added' });
+    expect(useShopStore.getState().itemsByList['test-list']).toHaveLength(0);
+    useShopStore.getState().setListBudget('test-list', 50);
+    expect(useShopStore.getState().lists[0].budget).toBeUndefined();
+  });
 });

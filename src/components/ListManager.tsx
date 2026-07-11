@@ -94,6 +94,7 @@ export function ListManager({ onClose }: ListManagerProps) {
             const count = itemsByList[l.id]?.length ?? 0;
             const isActive = l.id === activeListId;
             const isEditing = editingId === l.id;
+            const canDelete = lists.length > 1 && (!l.remoteHouseholdId || l.accessRole === 'owner');
             return (
               <li
                 key={l.id}
@@ -150,9 +151,9 @@ export function ListManager({ onClose }: ListManagerProps) {
                       <button
                         className="icon-btn list-manager__delete"
                         onClick={() => deleteList(l.id)}
-                        disabled={lists.length <= 1}
+                        disabled={!canDelete}
                         aria-label={`Delete ${l.name}`}
-                        title={lists.length <= 1 ? 'Keep at least one list' : 'Delete list'}
+                        title={lists.length <= 1 ? 'Keep at least one list' : !canDelete ? 'Only the list owner can delete this shared list' : 'Delete list'}
                       >
                         <Trash2 size={14} />
                       </button>

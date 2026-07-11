@@ -11,11 +11,13 @@ import {
   X,
   Cloud,
   Undo2,
+  Share2,
 } from 'lucide-react';
 import {
   useShopStore,
   selectActiveList,
   selectActiveStore,
+  selectCanEditActive,
 } from './store/store';
 import { ShoppingList } from './components/ShoppingList';
 import { CostFooter } from './components/CostFooter';
@@ -24,6 +26,7 @@ import { ListManager } from './components/ListManager';
 import { AccountPanel } from './components/AccountPanel';
 import { startCloudSync, syncNow } from './lib/cloudSync';
 import { supabase } from './lib/supabase';
+import { ShareListPanel } from './components/ShareListPanel';
 import './App.css';
 
 /* ============================================================================
@@ -43,10 +46,12 @@ export default function App() {
   const latestTrash = useShopStore((s) => s.trash[0]);
   const restoreTrash = useShopStore((s) => s.restoreTrash);
   const dismissTrash = useShopStore((s) => s.dismissTrash);
+  const canEdit = useShopStore(selectCanEditActive);
 
   const [composerOpen, setComposerOpen] = useState(false);
   const [listsOpen, setListsOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
 
   useEffect(() => {
     if (!supabase) return;
@@ -72,25 +77,28 @@ export default function App() {
         currency={activeList.currency}
         onOpenLists={() => setListsOpen(true)}
         onOpenAccount={() => setAccountOpen(true)}
+        onShare={() => setShareOpen(true)}
+        accessRole={activeList.accessRole}
         onBudgetChange={(budget) => setListBudget(activeList.id, budget)}
       />
 
       <main className="app-main">
-        {!onboardingSeen && <Onboarding onAdd={() => setComposerOpen(true)} />}
-        <ShoppingList onAdd={() => setComposerOpen(true)} />
+        {!onboardingSeen && canEdit && <Onboarding onAdd={() => setComposerOpen(true)} />}
+        <ShoppingList onAdd={() => setComposerOpen(true)} canEdit={canEdit} />
       </main>
 
-      <button
+      {canEdit && <button
         className={`fab ${composerOpen ? 'fab--hidden' : ''}`}
         aria-label="Add item"
         onClick={() => setComposerOpen(true)}
       >
         <Plus size={26} strokeWidth={2.5} />
-      </button>
+      </button>}
 
       {composerOpen && <AddItemComposer onClose={() => setComposerOpen(false)} />}
       {listsOpen && <ListManager onClose={() => setListsOpen(false)} />}
       {accountOpen && <AccountPanel onClose={() => setAccountOpen(false)} />}
+      {shareOpen && <ShareListPanel list={activeList} onClose={() => setShareOpen(false)} />}
 
       {latestTrash && (
         <div className="undo-toast" role="status">
@@ -115,10 +123,12 @@ interface HeaderProps {
   currency: string;
   onOpenLists: () => void;
   onOpenAccount: () => void;
+  onShare: () => void;
+  accessRole?: 'owner' | 'editor' | 'viewer';
   onBudgetChange: (budget: number | undefined) => void;
 }
 
-function Header({ listName, storeName, budget, currency, onOpenLists, onOpenAccount, onBudgetChange }: HeaderProps) {
+function Header({ listName, storeName, budget, currency, accessRole, onOpenLists, onOpenAccount, onShare, onBudgetChange }: HeaderProps) {
   const [editing, setEditing] = useState(false);
   const [draftBudget, setDraftBudget] = useState(budget !== undefined ? String(budget) : '');
 
@@ -142,6 +152,7 @@ function Header({ listName, storeName, budget, currency, onOpenLists, onOpenAcco
           <span className="app-header__brand-text">CoShop</span>
         </div>
         <div className="app-header__top-actions">
+          <button className="icon-btn" aria-label="Share current list" onClick={onShare}><Share2 size={16} /></button>
           <button className="icon-btn" aria-label="Backup, account, and sharing" onClick={onOpenAccount}><Cloud size={16} /></button>
           <button
             className="btn-ghost app-header__lists-btn"
@@ -150,13 +161,13 @@ function Header({ listName, storeName, budget, currency, onOpenLists, onOpenAcco
           >
             <ListChecks size={16} /> Lists
           </button>
-          <button
+          {accessRole !== 'viewer' && <button
             className="icon-btn"
             aria-label="Edit budget"
             onClick={() => setEditing((e) => !e)}
           >
             <Pencil size={16} />
-          </button>
+          </button>}
         </div>
       </div>
 
@@ -198,6 +209,7 @@ function Header({ listName, storeName, budget, currency, onOpenLists, onOpenAcco
                 Budget · {new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(budget)}
               </span>
             )}
+            {accessRole === 'viewer' && <span className="chip">View only</span>}
           </div>
         </div>
       )}

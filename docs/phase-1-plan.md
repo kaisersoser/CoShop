@@ -452,6 +452,9 @@ it cannot ship before all earlier gates pass.
 
 - Support email magic link initially; add Apple and Google only after redirect and account-linking
   behavior is tested across PWA and Capacitor.
+- Add phone OTP as an equivalent account path only after an SMS provider, sender registration,
+  rate limits, fraud monitoring, and recovery testing are configured. WhatsApp OTP is separately
+  feature-flagged and must not be implied available merely because links can be shared to WhatsApp.
 - Preserve full guest use without auth prompts during normal list creation or shopping.
 - Offer account creation contextually for backup, sharing, and multi-device access.
 - Label the commitment explicitly and state the requested value, list/household scope, and local
@@ -470,14 +473,17 @@ it cannot ship before all earlier gates pass.
 ### C4. Household and invitation flows
 
 - Create a household automatically for the first linked account.
-- Add `Share list/household` via secure universal link and QR code.
+- Default to list-scoped sharing through a secure universal link with explicit viewer/editor access;
+  make household-wide membership a separate, clearly labelled action.
+- Deliver list invitations through the device share sheet with copy, SMS, WhatsApp, and Telegram fallbacks;
+  do not request contact access or upload a manually entered recipient number.
 - Show inviter, household name, role, expiry, and concrete data scope before acceptance.
 - Complete the originally requested share/backup action after authentication rather than ending at
   account creation.
 - Support pending, expired, used, revoked, and already-member states.
 - Add member management, ownership transfer, leave household, and household deletion flows.
-- Delay per-list sharing unless research shows household-wide sharing is insufficient; keep schema
-  extensible for it.
+- Keep list and household permissions independent so accepting a list invitation never exposes
+  unrelated household lists.
 
 ### C5. Sync and realtime
 

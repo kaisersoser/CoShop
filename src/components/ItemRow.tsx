@@ -26,9 +26,10 @@ import './ItemRow.css';
 
 interface ItemRowProps {
   item: ShoppingItem;
+  canEdit?: boolean;
 }
 
-export function ItemRow({ item }: ItemRowProps) {
+export function ItemRow({ item, canEdit = true }: ItemRowProps) {
   const toggleItemStatus = useShopStore((s) => s.toggleItemStatus);
   const deleteItem = useShopStore((s) => s.deleteItem);
   const updateItem = useShopStore((s) => s.updateItem);
@@ -61,6 +62,7 @@ export function ItemRow({ item }: ItemRowProps) {
           onClick={() => toggleItemStatus(item.id)}
           aria-pressed={item.isPurchased}
           aria-label={item.isPurchased ? 'Mark as pending' : 'Mark as purchased'}
+          disabled={!canEdit}
         >
           <Check size={16} strokeWidth={3} className="check__tick" />
         </button>
@@ -79,7 +81,7 @@ export function ItemRow({ item }: ItemRowProps) {
             ) : (
               <span className="item-row__qty">Qty {item.quantity}</span>
             )}
-            {isOther && (
+            {isOther && canEdit && (
               <CategorySelect
                 value={item.category}
                 onChange={(c) => setItemCategory(item.id, c)}
@@ -92,7 +94,8 @@ export function ItemRow({ item }: ItemRowProps) {
         </div>
 
         {/* Actions */}
-        <div className="item-row__actions">
+        {!canEdit && photoUrl && <button className="icon-btn item-row__photo item-row__photo--has" onClick={() => setPhotoOpen(true)} aria-label="View photo"><img src={photoUrl} alt="" className="item-row__photo-thumb" /></button>}
+        {canEdit && <div className="item-row__actions">
           <button
             className={`icon-btn item-row__photo ${photoUrl ? 'item-row__photo--has' : ''}`}
             onClick={() => setPhotoOpen(true)}
@@ -109,13 +112,14 @@ export function ItemRow({ item }: ItemRowProps) {
             <button className="icon-btn" onClick={() => setMenuOpen((open) => !open)} aria-expanded={menuOpen} aria-label={`More actions for ${item.name}`}><MoreVertical size={17} /></button>
             {menuOpen && <div className="item-row__menu glass-strong"><button onClick={() => { setEditing(true); setMenuOpen(false); }}><Pencil size={15} /> Edit item</button><button className="item-row__delete" onClick={() => { deleteItem(item.id); setMenuOpen(false); }}><Trash2 size={15} /> Remove item</button></div>}
           </div>
-        </div>
+        </div>}
       </li>
 
       {photoOpen && (
         <PhotoModal
           item={item}
           photoUrl={photoUrl}
+          readOnly={!canEdit}
           onClose={() => setPhotoOpen(false)}
           onSave={async (dataUrl) => {
             const photoRef = await saveImage(dataUrl, item.photoRef);
@@ -154,12 +158,13 @@ export function ItemRow({ item }: ItemRowProps) {
 interface PhotoModalProps {
   item: ShoppingItem;
   photoUrl?: string;
+  readOnly?: boolean;
   onClose: () => void;
   onSave: (dataUrl: string) => Promise<void>;
   onClear: () => Promise<void>;
 }
 
-function PhotoModal({ item, photoUrl, onClose, onSave, onClear }: PhotoModalProps) {
+function PhotoModal({ item, photoUrl, readOnly, onClose, onSave, onClear }: PhotoModalProps) {
   const [preview, setPreview] = useState<string | undefined>(photoUrl);
   const [error, setError] = useState<string | null>(null);
 
@@ -189,7 +194,7 @@ function PhotoModal({ item, photoUrl, onClose, onSave, onClear }: PhotoModalProp
         aria-label={`Photo for ${item.name}`}
       >
         <div className="modal__head">
-          <h3>{photoUrl ? 'Item Photo' : 'Add Photo'}</h3>
+          <h3>{readOnly ? 'Item Photo' : photoUrl ? 'Item Photo' : 'Add Photo'}</h3>
           <button className="icon-btn" onClick={onClose} aria-label="Close">
             <X size={18} />
           </button>
@@ -212,7 +217,7 @@ function PhotoModal({ item, photoUrl, onClose, onSave, onClear }: PhotoModalProp
           </div>
         )}
 
-        <div className="modal__actions">
+        {!readOnly && <div className="modal__actions">
           <button className="btn-primary" onClick={choose}>
             <Camera size={16} /> {photoUrl ? 'Replace' : 'Choose photo'}
           </button>
@@ -226,7 +231,7 @@ function PhotoModal({ item, photoUrl, onClose, onSave, onClear }: PhotoModalProp
               <Check size={16} /> Save photo
             </button>
           )}
-        </div>
+        </div>}
       </div>
     </div>,
     document.body,

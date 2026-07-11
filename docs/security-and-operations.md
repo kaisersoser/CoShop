@@ -6,6 +6,10 @@
 - Cloud data is scoped by `household_id`. Every exposed table and the private photo bucket use row-level policies.
 - Only publishable Supabase credentials may reach the browser. Service-role keys must never be used by Vite or Vercel client variables.
 - Content Security Policy limits script, network, framing, and object sources. Camera access is same-origin and microphone/location are disabled until their features exist.
+- List invitation tokens are random, stored only as SHA-256 hashes, single use, revocable, and
+  expire after seven days. Preview responses expose list name and requested role, never item data.
+- Phone OTP stays disabled until provider credentials, sender registration, geographic controls,
+  rate limits, delivery monitoring, and abuse alerts are configured outside the client.
 
 ## Incident runbook
 
