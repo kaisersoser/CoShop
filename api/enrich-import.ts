@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { IMPORT_CATEGORY_IDS, IMPORT_LANGUAGES, type EnrichedProduct, type ImportLanguage } from '../src/lib/importTypes';
+import { IMPORT_CATEGORY_IDS, IMPORT_LANGUAGES, type EnrichedProduct, type ImportLanguage } from '../src/lib/importTypes.js';
 
 interface VercelRequest { method?: string; headers: Record<string, string | string[] | undefined>; body?: unknown; }
 interface VercelResponse { status: (code: number) => VercelResponse; json: (body: unknown) => void; setHeader: (name: string, value: string) => void; }
