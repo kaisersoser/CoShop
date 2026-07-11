@@ -7,6 +7,7 @@ const reset = () => {
     lists: [{ id: listId, name: 'Test', currency: 'USD', createdAt: 1, updatedAt: 1 }],
     itemsByList: { [listId]: [] }, stores: [], trash: [], categoryPreferences: {},
     activeListId: listId, onboardingSeen: false, hydrated: true,
+    preferences: { region: 'US', language: 'en', defaultCurrency: 'USD' },
   });
 };
 
@@ -39,5 +40,10 @@ describe('shopping state', () => {
     expect(useShopStore.getState().itemsByList['test-list']).toHaveLength(0);
     useShopStore.getState().setListBudget('test-list', 50);
     expect(useShopStore.getState().lists[0].budget).toBeUndefined();
+  });
+  it('uses the configured currency for new lists', () => {
+    useShopStore.getState().updatePreferences({ region: 'FR', defaultCurrency: 'EUR' });
+    const id = useShopStore.getState().createList('Paris groceries');
+    expect(useShopStore.getState().lists.find((list) => list.id === id)?.currency).toBe('EUR');
   });
 });

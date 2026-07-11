@@ -14,6 +14,7 @@ Zustand, Supabase, and Capacitor. The production candidate is live at
 - Optional email-link backup, household invites, Realtime sync, and private remote photos
 - List-specific viewer/editor invitations through native sharing, SMS, WhatsApp, or Telegram; phone OTP is
   feature-flagged until an SMS provider is configured
+- Consolidated settings for region, language readiness, currency, backup/sync, export, and privacy
 - Honest budget totals with missing-price coverage and real shopping progress
 - Installable offline PWA with desktop/mobile accessibility tests
 - Capacitor-ready platform capability abstractions

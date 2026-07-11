@@ -6,12 +6,15 @@ import { acceptListInvite, previewListInvite, type ListInvitePreview } from '../
 import { useShopStore } from '../store/store';
 import { AuthForm } from './AuthForm';
 import './JoinListPage.css';
+import { preferenceLocale } from '../data/preferences';
 
 export function JoinListPage({ token }: { token: string }) {
   const [preview, setPreview] = useState<ListInvitePreview | null | undefined>(undefined);
   const [session, setSession] = useState<Session | null>(null);
   const [notice, setNotice] = useState('');
   const [joining, setJoining] = useState(false);
+  const preferences = useShopStore((state) => state.preferences);
+  const locale = preferenceLocale(preferences.language, preferences.region);
 
   useEffect(() => {
     if (!supabase) { setPreview(null); return; }
@@ -38,7 +41,7 @@ export function JoinListPage({ token }: { token: string }) {
     <div className="join-card__icon"><ShieldCheck size={30} /></div>
     <h1 id="join-title">Join “{preview.listName}”</h1>
     <div className="join-card__scope">{preview.role === 'editor' ? <Pencil size={17} /> : <Eye size={17} />}<div><strong>{preview.role === 'editor' ? 'Can edit' : 'View only'}</strong><span>{preview.role === 'editor' ? 'You can add, change, and check off items on this list.' : 'You can see this list but cannot change its items.'}</span></div></div>
-    <p className="join-card__expiry">Invitation expires {new Intl.DateTimeFormat(undefined, { dateStyle: 'long', timeStyle: 'short' }).format(new Date(preview.expiresAt))}.</p>
+    <p className="join-card__expiry">Invitation expires {new Intl.DateTimeFormat(locale, { dateStyle: 'long', timeStyle: 'short' }).format(new Date(preview.expiresAt))}.</p>
     {!session ? <><p>Sign in to claim this invitation. CoShop will preserve any lists already on this device, and the inviter will not receive your email or phone number.</p><AuthForm redirectTo={window.location.href} onNotice={setNotice} /></> : <><p>You are signed in as <strong>{session.user.email ?? maskPhone(session.user.phone)}</strong>. Only this shopping list will be shared.</p><button className="btn-primary join-card__accept" disabled={joining} onClick={() => void accept()}><Check size={17} /> {joining ? 'Joining list…' : `Join as ${preview.role}`}</button></>}
     {notice && <p className="account-panel__feedback" role="status">{notice}</p>}
     <a className="join-card__decline" href="/">Not now — open my lists</a>

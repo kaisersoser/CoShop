@@ -35,6 +35,7 @@ export interface ShoppingList {
 }
 
 export interface Store { id: string; name: string; address?: string; remoteHouseholdId?: string; }
+export interface UserPreferences { region: string; language: string; defaultCurrency: string; }
 export interface AddItemInput {
   name: string;
   catalogId?: string;
@@ -64,6 +65,7 @@ export interface ShopState {
   activeListId: string;
   onboardingSeen: boolean;
   hydrated: boolean;
+  preferences: UserPreferences;
 
   createList: (name?: string) => string;
   renameList: (id: string, name: string) => void;
@@ -71,6 +73,7 @@ export interface ShopState {
   deleteList: (id: string) => void;
   setActiveList: (id: string) => void;
   setListBudget: (id: string, budget: number | undefined) => void;
+  setListCurrency: (id: string, currency: string) => void;
   setListStore: (id: string, store: { name: string; address?: string } | null) => void;
   addItem: (input: AddItemInput) => void;
   toggleItemStatus: (id: string) => void;
@@ -81,19 +84,27 @@ export interface ShopState {
   restoreTrash: (id?: string) => void;
   dismissTrash: (id: string) => void;
   dismissOnboarding: () => void;
+  updatePreferences: (patch: Partial<UserPreferences>) => void;
   replaceFromCloud: (data: Pick<ShopState, 'lists' | 'itemsByList' | 'stores'>) => void;
 }
 
 const uid = (): string => crypto.randomUUID();
-const defaultListName = (): string =>
-  new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(new Date()) + ' shopping';
+const defaultListName = (locale?: string): string =>
+  new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric' }).format(new Date()) + ' shopping';
 const normalize = (value: string) => value.trim().toLocaleLowerCase();
+const regionCurrency: Record<string, string> = { US: 'USD', GB: 'GBP', FR: 'EUR', DE: 'EUR', ES: 'EUR', IT: 'EUR', CA: 'CAD', AU: 'AUD', NZ: 'NZD', CH: 'CHF', JP: 'JPY' };
+const initialPreferences = (): UserPreferences => {
+  let region = 'US';
+  try { region = new Intl.Locale(navigator.language).region ?? region; } catch { /* use safe default */ }
+  return { region, language: 'en', defaultCurrency: regionCurrency[region] ?? 'USD' };
+};
 
 const initialState = () => {
   const id = uid();
   const now = Date.now();
+  const preferences = initialPreferences();
   return {
-    lists: [{ id, name: defaultListName(), currency: 'USD', createdAt: now, updatedAt: now }],
+    lists: [{ id, name: defaultListName(`${preferences.language}-${preferences.region}`), currency: preferences.defaultCurrency, createdAt: now, updatedAt: now }],
     itemsByList: { [id]: [] },
     stores: [] as Store[],
     trash: [] as TrashEntry[],
@@ -101,6 +112,7 @@ const initialState = () => {
     activeListId: id,
     onboardingSeen: false,
     hydrated: false,
+    preferences,
   };
 };
 
@@ -130,7 +142,7 @@ export const useShopStore = create<ShopState>()(persist((set, get) => ({
   ...initialState(),
   createList: (name) => {
     const id = uid(); const now = Date.now();
-    set((s) => ({ lists: [...s.lists, { id, name: name?.trim() || defaultListName(), currency: 'USD', createdAt: now, updatedAt: now }], itemsByList: { ...s.itemsByList, [id]: [] }, activeListId: id }));
+    set((s) => ({ lists: [...s.lists, { id, name: name?.trim() || defaultListName(`${s.preferences.language}-${s.preferences.region}`), currency: s.preferences.defaultCurrency, createdAt: now, updatedAt: now }], itemsByList: { ...s.itemsByList, [id]: [] }, activeListId: id }));
     return id;
   },
   renameList: (id, name) => set((s) => ({ lists: s.lists.map((l) => l.id === id && l.accessRole !== 'viewer' ? { ...l, name: name.trim() || l.name, updatedAt: Date.now() } : l) })),
@@ -152,6 +164,7 @@ export const useShopStore = create<ShopState>()(persist((set, get) => ({
   }),
   setActiveList: (id) => set((s) => s.lists.some((l) => l.id === id) ? { activeListId: id } : s),
   setListBudget: (id, budget) => set((s) => ({ lists: s.lists.map((l) => l.id === id && l.accessRole !== 'viewer' ? { ...l, budget, updatedAt: Date.now() } : l) })),
+  setListCurrency: (id, currency) => set((s) => ({ lists: s.lists.map((l) => l.id === id && l.accessRole !== 'viewer' ? { ...l, currency, updatedAt: Date.now() } : l) })),
   setListStore: (id, input) => set((s) => {
     const target = s.lists.find((list) => list.id === id);
     if (target?.remoteHouseholdId && target.accessRole !== 'owner') return s;
@@ -182,10 +195,11 @@ export const useShopStore = create<ShopState>()(persist((set, get) => ({
   }),
   dismissTrash: (id) => set((s) => ({ trash: s.trash.filter((t) => t.id !== id) })),
   dismissOnboarding: () => set({ onboardingSeen: true }),
+  updatePreferences: (patch) => set((s) => ({ preferences: { ...s.preferences, ...patch } })),
   replaceFromCloud: (data) => set((s) => ({ ...data, activeListId: data.lists.some((l) => l.id === s.activeListId) ? s.activeListId : data.lists[0]?.id ?? s.activeListId })),
 }), {
   name: 'coshop-store-v3', version: 3, storage: createJSONStorage(() => indexedDbStorage),
-  partialize: (s) => ({ lists: s.lists, itemsByList: s.itemsByList, stores: s.stores, trash: s.trash, categoryPreferences: s.categoryPreferences, activeListId: s.activeListId, onboardingSeen: s.onboardingSeen }),
+  partialize: (s) => ({ lists: s.lists, itemsByList: s.itemsByList, stores: s.stores, trash: s.trash, categoryPreferences: s.categoryPreferences, activeListId: s.activeListId, onboardingSeen: s.onboardingSeen, preferences: s.preferences }),
   onRehydrateStorage: () => () => { queueMicrotask(() => useShopStore.setState({ hydrated: true })); },
   migrate: (persisted) => ({ ...initialState(), ...(persisted as Partial<ShopState>), hydrated: true }),
 }));

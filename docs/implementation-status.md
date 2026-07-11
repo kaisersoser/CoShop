@@ -12,6 +12,8 @@ Updated 10 July 2026. This is the evidence ledger for the production-readiness p
 - Supabase email-link authentication, guest-first account prompt, household bootstrap/invites, Realtime changes, idempotent timestamp reconciliation, offline retry, private remote photos, and RLS isolation.
 - List-scoped, expiring single-use invitations with viewer/editor roles, native mobile sharing,
   copy/SMS/WhatsApp/Telegram fallbacks, secure join previews, and feature-flagged phone/WhatsApp OTP UI.
+- One consolidated list-sharing entry point and a separate settings surface for region, language,
+  currency, account/backup, sync, export, and privacy controls.
 - Versioned database migrations, generated client types, private Storage policy, security/performance advisor pass review, and executable cross-household RLS test.
 - GitHub CI, zero known npm audit vulnerabilities, Vercel security headers, error recovery boundary, privacy notice, and incident/rollback runbook.
 

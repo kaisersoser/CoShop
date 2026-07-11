@@ -1,0 +1,76 @@
+import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import type { Session } from '@supabase/supabase-js';
+import { Check, Cloud, CloudOff, Download, Globe2, Languages, LogOut, RefreshCw, Settings, WalletCards, X } from 'lucide-react';
+import { startCloudSync, syncNow, watchSync, type SyncState } from '../lib/cloudSync';
+import { cloudConfigured, supabase } from '../lib/supabase';
+import { selectActiveList, useShopStore } from '../store/store';
+import { CURRENCIES, LANGUAGES, REGIONS } from '../data/preferences';
+import { AuthForm } from './AuthForm';
+import './SettingsPanel.css';
+
+export function SettingsPanel({ onClose }: { onClose: () => void }) {
+  const [session, setSession] = useState<Session | null>(null);
+  const [status, setStatus] = useState<SyncState>('guest');
+  const [message, setMessage] = useState('');
+  const [notice, setNotice] = useState('');
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const preferences = useShopStore((state) => state.preferences);
+  const updatePreferences = useShopStore((state) => state.updatePreferences);
+  const activeList = useShopStore(selectActiveList);
+  const setListCurrency = useShopStore((state) => state.setListCurrency);
+  const canChangeListCurrency = activeList?.accessRole !== 'viewer';
+
+  useEffect(() => {
+    closeRef.current?.focus();
+    const onKey = (event: KeyboardEvent) => event.key === 'Escape' && onClose();
+    window.addEventListener('keydown', onKey);
+    const stopWatch = watchSync((next, detail) => { setStatus(next); setMessage(detail ?? ''); });
+    if (!supabase) return () => { stopWatch(); window.removeEventListener('keydown', onKey); };
+    void supabase.auth.getSession().then(({ data }) => { setSession(data.session); void startCloudSync(data.session); });
+    const { data } = supabase.auth.onAuthStateChange((_event, next) => { setSession(next); void startCloudSync(next); });
+    return () => { data.subscription.unsubscribe(); stopWatch(); window.removeEventListener('keydown', onKey); };
+  }, [onClose]);
+
+  useEffect(() => { document.documentElement.lang = preferences.language; }, [preferences.language]);
+
+  const exportData = () => {
+    const state = useShopStore.getState();
+    const payload = JSON.stringify({ exportedAt: new Date().toISOString(), version: 1, lists: state.lists, itemsByList: state.itemsByList, stores: state.stores, preferences: state.preferences }, null, 2);
+    const url = URL.createObjectURL(new Blob([payload], { type: 'application/json' }));
+    const anchor = document.createElement('a'); anchor.href = url; anchor.download = `coshop-export-${new Date().toISOString().slice(0, 10)}.json`; anchor.click(); URL.revokeObjectURL(url);
+  };
+
+  const changeCurrency = (currency: string) => {
+    updatePreferences({ defaultCurrency: currency });
+    if (activeList && canChangeListCurrency) setListCurrency(activeList.id, currency);
+  };
+
+  return createPortal(<div className="modal-overlay" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+    <section className="modal glass-strong settings-panel" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+      <div className="modal__head"><h3 id="settings-title"><Settings size={19} /> Settings</h3><button ref={closeRef} className="icon-btn" onClick={onClose} aria-label="Close"><X size={18} /></button></div>
+
+      <section className="settings-section" aria-labelledby="regional-heading">
+        <div className="settings-section__heading"><Globe2 size={17} /><div><h4 id="regional-heading">Region & formatting</h4><p>Controls dates, number formatting, and the currency used by new lists.</p></div></div>
+        <div className="settings-field"><label htmlFor="settings-region">Region</label><select id="settings-region" className="field" value={preferences.region} onChange={(event) => updatePreferences({ region: event.target.value })}>{REGIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>
+        <div className="settings-field"><label htmlFor="settings-language"><Languages size={14} /> Language</label><select id="settings-language" className="field" value={preferences.language} onChange={(event) => updatePreferences({ language: event.target.value })}>{LANGUAGES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select><small>English is currently available; this preference is ready for future translations.</small></div>
+        <div className="settings-field"><label htmlFor="settings-currency"><WalletCards size={14} /> Currency</label><select id="settings-currency" className="field" value={canChangeListCurrency ? activeList?.currency ?? preferences.defaultCurrency : preferences.defaultCurrency} onChange={(event) => changeCurrency(event.target.value)}>{CURRENCIES.map(([value, label]) => <option key={value} value={value}>{value} — {label}</option>)}</select><small>{canChangeListCurrency ? 'Updates this list and becomes the default for new lists.' : 'Sets the default for new lists; this shared list is view only.'}</small></div>
+      </section>
+
+      <section className="settings-section" aria-labelledby="backup-heading">
+        <div className="settings-section__heading"><Cloud size={17} /><div><h4 id="backup-heading">Account & backup</h4><p>Guest lists stay on this device. Sign in only for backup, sync, and shared lists.</p></div></div>
+        {!cloudConfigured ? <div className="account-panel__notice"><CloudOff size={18} /><div><strong>Local mode</strong><span>Cloud backup has not been configured. Your lists still work offline.</span></div></div>
+        : !session ? <AuthForm redirectTo={window.location.origin} onNotice={setNotice} />
+        : <><div className="account-panel__identity"><Check size={16} /><div><strong>Automatic backup on</strong><span>{session.user.email ?? maskPhone(session.user.phone)}</span></div><button className="btn-ghost" onClick={() => supabase?.auth.signOut()}><LogOut size={14} /> Sign out</button></div><div className="account-panel__status" role="status"><span className={`sync-dot sync-dot--${status}`} /><span>{status === 'syncing' ? 'Syncing…' : status === 'synced' ? message || 'Backed up' : message || 'Ready to sync'}</span><button className="icon-btn" onClick={() => void syncNow()} aria-label="Sync now"><RefreshCw size={15} /></button></div></>}
+        {notice && <p className="account-panel__feedback" role="status">{notice}</p>}
+      </section>
+
+      <section className="settings-section" aria-labelledby="data-heading">
+        <div className="settings-section__heading"><Download size={17} /><div><h4 id="data-heading">Your data</h4><p>Export lists and item details at any time.</p></div></div>
+        <div className="account-panel__export"><div><strong>Download JSON export</strong><span>Includes lists, items, stores, and preferences. <a href="/privacy.html" target="_blank" rel="noreferrer">Privacy notice</a></span></div><button className="btn-ghost" onClick={exportData}><Download size={15} /> Export</button></div>
+      </section>
+    </section>
+  </div>, document.body);
+}
+
+const maskPhone = (phone?: string) => phone ? `${phone.slice(0, 3)}••••${phone.slice(-3)}` : 'Verified account';

@@ -7,6 +7,8 @@ import { cloudConfigured, supabase } from '../lib/supabase';
 import { createListInvite, inviteMessage, type CreatedListInvite, type ListAccessRole } from '../lib/sharing';
 import { AuthForm } from './AuthForm';
 import './ShareListPanel.css';
+import { preferenceLocale } from '../data/preferences';
+import { useShopStore } from '../store/store';
 
 export function ShareListPanel({ list, onClose }: { list: ShoppingList; onClose: () => void }) {
   const [session, setSession] = useState<Session | null>(null);
@@ -18,6 +20,8 @@ export function ShareListPanel({ list, onClose }: { list: ShoppingList; onClose:
   const closeRef = useRef<HTMLButtonElement>(null);
   const canShareList = list.accessRole !== 'viewer';
   const supportsNativeShare = typeof navigator.share === 'function';
+  const preferences = useShopStore((state) => state.preferences);
+  const locale = preferenceLocale(preferences.language, preferences.region);
 
   useEffect(() => {
     closeRef.current?.focus();
@@ -72,7 +76,7 @@ export function ShareListPanel({ list, onClose }: { list: ShoppingList; onClose:
       : <>
         <fieldset className="share-panel__roles"><legend>Access level</legend><label className={role === 'editor' ? 'share-panel__role--active' : ''}><input type="radio" name="invite-role" value="editor" checked={role === 'editor'} onChange={() => { setRole('editor'); setInvite(null); }} /><span><strong>Can edit</strong><small>Add, change, and check off items</small></span></label><label className={role === 'viewer' ? 'share-panel__role--active' : ''}><input type="radio" name="invite-role" value="viewer" checked={role === 'viewer'} onChange={() => { setRole('viewer'); setInvite(null); }} /><span><strong>View only</strong><small>See the list without changing it</small></span></label></fieldset>
         {!invite ? <button className="btn-primary" disabled={busy} onClick={() => void generate()}><Share2 size={17} /> {busy ? 'Creating secure link…' : 'Create invitation link'}</button> : <>
-          <div className="share-panel__ready"><Check size={17} /><div><strong>Invitation ready</strong><span>Single use · expires {new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(invite.expiresAt))}</span></div></div>
+          <div className="share-panel__ready"><Check size={17} /><div><strong>Invitation ready</strong><span>Single use · expires {new Intl.DateTimeFormat(locale, { dateStyle: 'medium' }).format(new Date(invite.expiresAt))}</span></div></div>
           {supportsNativeShare && <button className="btn-primary" onClick={() => void nativeShare()}><Smartphone size={17} /> Messages, WhatsApp & more</button>}
           <div className="share-panel__channels"><button className="btn-ghost" onClick={() => void copy()}><Copy size={16} /> Copy link</button><button className="btn-ghost" onClick={sendWhatsApp}><MessageCircle size={16} /> WhatsApp</button><button className="btn-ghost" onClick={sendTelegram}><Send size={16} /> Telegram</button></div>
           <div className="share-panel__sms"><label htmlFor="invite-phone">Phone number for SMS <span>(optional)</span></label><div className="account-panel__row"><input id="invite-phone" className="field" type="tel" inputMode="tel" autoComplete="off" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="+33 6 12 34 56 78" /><button className="btn-ghost" onClick={sendSms}><MessageSquare size={16} /> Open SMS</button></div><small>The number stays in this form and is not uploaded.</small></div>

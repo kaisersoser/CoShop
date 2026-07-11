@@ -9,24 +9,26 @@ import {
   Store as StoreIcon,
   ChevronDown,
   X,
-  Cloud,
   Undo2,
   Share2,
+  Settings as SettingsIcon,
 } from 'lucide-react';
 import {
   useShopStore,
   selectActiveList,
   selectActiveStore,
   selectCanEditActive,
+  selectActiveItems,
 } from './store/store';
 import { ShoppingList } from './components/ShoppingList';
 import { CostFooter } from './components/CostFooter';
 import { AddItemComposer } from './components/AddItemComposer';
 import { ListManager } from './components/ListManager';
-import { AccountPanel } from './components/AccountPanel';
+import { SettingsPanel } from './components/SettingsPanel';
 import { startCloudSync, syncNow } from './lib/cloudSync';
 import { supabase } from './lib/supabase';
 import { ShareListPanel } from './components/ShareListPanel';
+import { preferenceLocale } from './data/preferences';
 import './App.css';
 
 /* ============================================================================
@@ -47,10 +49,13 @@ export default function App() {
   const restoreTrash = useShopStore((s) => s.restoreTrash);
   const dismissTrash = useShopStore((s) => s.dismissTrash);
   const canEdit = useShopStore(selectCanEditActive);
+  const activeItems = useShopStore(selectActiveItems);
+  const preferences = useShopStore((state) => state.preferences);
+  const locale = preferenceLocale(preferences.language, preferences.region);
 
   const [composerOpen, setComposerOpen] = useState(false);
   const [listsOpen, setListsOpen] = useState(false);
-  const [accountOpen, setAccountOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
 
   useEffect(() => {
@@ -76,15 +81,16 @@ export default function App() {
         budget={activeList.budget}
         currency={activeList.currency}
         onOpenLists={() => setListsOpen(true)}
-        onOpenAccount={() => setAccountOpen(true)}
+        onOpenSettings={() => setSettingsOpen(true)}
         onShare={() => setShareOpen(true)}
         accessRole={activeList.accessRole}
+        locale={locale}
         onBudgetChange={(budget) => setListBudget(activeList.id, budget)}
       />
 
       <main className="app-main">
         {!onboardingSeen && canEdit && <Onboarding onAdd={() => setComposerOpen(true)} />}
-        <ShoppingList onAdd={() => setComposerOpen(true)} canEdit={canEdit} />
+        {(onboardingSeen || activeItems.length > 0 || !canEdit) && <ShoppingList onAdd={() => setComposerOpen(true)} canEdit={canEdit} />}
       </main>
 
       {canEdit && <button
@@ -97,7 +103,7 @@ export default function App() {
 
       {composerOpen && <AddItemComposer onClose={() => setComposerOpen(false)} />}
       {listsOpen && <ListManager onClose={() => setListsOpen(false)} />}
-      {accountOpen && <AccountPanel onClose={() => setAccountOpen(false)} />}
+      {settingsOpen && <SettingsPanel onClose={() => setSettingsOpen(false)} />}
       {shareOpen && <ShareListPanel list={activeList} onClose={() => setShareOpen(false)} />}
 
       {latestTrash && (
@@ -122,13 +128,14 @@ interface HeaderProps {
   budget?: number;
   currency: string;
   onOpenLists: () => void;
-  onOpenAccount: () => void;
+  onOpenSettings: () => void;
   onShare: () => void;
   accessRole?: 'owner' | 'editor' | 'viewer';
+  locale: string;
   onBudgetChange: (budget: number | undefined) => void;
 }
 
-function Header({ listName, storeName, budget, currency, accessRole, onOpenLists, onOpenAccount, onShare, onBudgetChange }: HeaderProps) {
+function Header({ listName, storeName, budget, currency, locale, accessRole, onOpenLists, onOpenSettings, onShare, onBudgetChange }: HeaderProps) {
   const [editing, setEditing] = useState(false);
   const [draftBudget, setDraftBudget] = useState(budget !== undefined ? String(budget) : '');
 
@@ -153,7 +160,7 @@ function Header({ listName, storeName, budget, currency, accessRole, onOpenLists
         </div>
         <div className="app-header__top-actions">
           <button className="icon-btn" aria-label="Share current list" onClick={onShare}><Share2 size={16} /></button>
-          <button className="icon-btn" aria-label="Backup, account, and sharing" onClick={onOpenAccount}><Cloud size={16} /></button>
+          <button className="icon-btn" aria-label="Open settings" onClick={onOpenSettings}><SettingsIcon size={16} /></button>
           <button
             className="btn-ghost app-header__lists-btn"
             onClick={onOpenLists}
@@ -206,7 +213,7 @@ function Header({ listName, storeName, budget, currency, accessRole, onOpenLists
             {budget !== undefined && budget > 0 && (
               <span className="app-header__budget">
                 <Wallet size={14} />
-                Budget · {new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(budget)}
+                Budget · {new Intl.NumberFormat(locale, { style: 'currency', currency }).format(budget)}
               </span>
             )}
             {accessRole === 'viewer' && <span className="chip">View only</span>}

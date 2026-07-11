@@ -736,6 +736,9 @@ are understood.
 - Keep gesture actions optional and provide equivalent visible controls.
 - Resync `ShoppingList`, `CostFooter`, and `ItemRow` design-system contracts after their production
   APIs stabilize; do not treat stale preview bundles as release evidence.
+- Keep list sharing as one task-oriented entry point. Put account, backup, regional formatting,
+  currency, language, export, and privacy controls in a scalable settings surface rather than
+  mixing them into sharing.
 
 ### 5.5 Ethical UX and behavioral experimentation
 

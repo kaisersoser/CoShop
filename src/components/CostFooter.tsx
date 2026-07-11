@@ -8,6 +8,7 @@ import {
   selectPriceCoverage,
 } from '../store/store';
 import './CostFooter.css';
+import { preferenceLocale } from '../data/preferences';
 
 /* ============================================================================
    CostFooter — persistent floating bar at the bottom of the viewport.
@@ -23,6 +24,8 @@ export function CostFooter() {
   const budget = activeList?.budget ?? 0;
   const currency = activeList?.currency ?? 'USD';
   const coverage = useShopStore(selectPriceCoverage);
+  const preferences = useShopStore((state) => state.preferences);
+  const locale = preferenceLocale(preferences.language, preferences.region);
   const inCartTotal = useShopStore(selectInCartTotal);
   const estimatedTotal = useShopStore(selectEstimatedTotal);
 
@@ -41,7 +44,7 @@ export function CostFooter() {
       : remaining < budget * 0.1
         ? 'var(--warning)'
         : 'var(--success)';
-  const money = (value: number) => new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(value);
+  const money = (value: number) => new Intl.NumberFormat(locale, { style: 'currency', currency }).format(value);
 
   return (
     <footer className="cost-footer glass-strong" role="status" aria-live="polite">
