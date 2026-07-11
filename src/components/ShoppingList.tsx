@@ -4,7 +4,7 @@ import type { ShoppingItem } from '../store/store';
 import { getCategory, categoryOrder } from '../data/categories';
 import { ItemRow } from './ItemRow';
 import { CategoryIcon } from './categoryIcon';
-import { CheckCircle2, PackageOpen, Trash2 } from 'lucide-react';
+import { CheckCircle2, FileUp, PackageOpen, Trash2 } from 'lucide-react';
 import './ShoppingList.css';
 import { useI18n } from '../i18n';
 
@@ -17,7 +17,7 @@ import { useI18n } from '../i18n';
 const orderedCategories = (buckets: Record<string, ShoppingItem[]>): string[] =>
   Object.keys(buckets).sort((a, b) => categoryOrder(a) - categoryOrder(b));
 
-export function ShoppingList({ onAdd, canEdit = true }: { onAdd: () => void; canEdit?: boolean }) {
+export function ShoppingList({ onAdd, onImport, canEdit = true }: { onAdd: () => void; onImport: () => void; canEdit?: boolean }) {
   const items = useShopStore(selectActiveItems);
   const clearPurchased = useShopStore((s) => s.clearPurchased);
   const { t } = useI18n();
@@ -42,7 +42,7 @@ export function ShoppingList({ onAdd, canEdit = true }: { onAdd: () => void; can
   }, [items]);
 
   if (items.length === 0) {
-    return <EmptyState onAdd={onAdd} canEdit={canEdit} />;
+    return <EmptyState onAdd={onAdd} onImport={onImport} canEdit={canEdit} />;
   }
 
   return (
@@ -151,7 +151,7 @@ function SectionHeader({ icon, title, count, action }: SectionHeaderProps) {
 /* ----------------------------------------------------------------------------
    Empty state
    -------------------------------------------------------------------------- */
-function EmptyState({ onAdd, canEdit }: { onAdd: () => void; canEdit: boolean }) {
+function EmptyState({ onAdd, onImport, canEdit }: { onAdd: () => void; onImport: () => void; canEdit: boolean }) {
   const { t } = useI18n();
   return (
     <div className="empty-state glass">
@@ -160,7 +160,10 @@ function EmptyState({ onAdd, canEdit }: { onAdd: () => void; canEdit: boolean })
       </div>
       <h2>{t('emptyTitle')}</h2>
       <p>{t(canEdit ? 'emptyText' : 'emptyShared')}</p>
-      {canEdit && <button className="btn-primary" onClick={onAdd}>{t('addFirstShort')}</button>}
+      {canEdit && <div className="empty-state__actions">
+        <button className="btn-primary" onClick={onAdd}>{t('addFirstShort')}</button>
+        <button className="btn-ghost" onClick={onImport}><FileUp size={16} /> {t('importPdf')}</button>
+      </div>}
     </div>
   );
 }

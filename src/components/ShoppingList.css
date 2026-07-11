@@ -176,3 +176,10 @@
   font-size: var(--fs-sm);
   line-height: var(--lh-normal);
 }
+
+.empty-state__actions {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}

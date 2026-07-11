@@ -150,9 +150,15 @@
   line-height: var(--lh-normal);
 }
 .onboarding__cta {
-  align-self: flex-start;
-  margin-top: var(--sp-2);
   padding: var(--sp-2) var(--sp-5);
+}
+
+.onboarding__actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
 }
 
 .app-header__edit {

@@ -12,6 +12,7 @@ import {
   Undo2,
   Share2,
   Settings as SettingsIcon,
+  FileUp,
 } from 'lucide-react';
 import {
   useShopStore,
@@ -91,8 +92,8 @@ export default function App() {
       />
 
       <main className="app-main">
-        {!onboardingSeen && canEdit && <Onboarding onAdd={() => setComposerOpen(true)} />}
-        {(onboardingSeen || activeItems.length > 0 || !canEdit) && <ShoppingList onAdd={() => setComposerOpen(true)} canEdit={canEdit} />}
+        {!onboardingSeen && canEdit && <Onboarding onAdd={() => setComposerOpen(true)} onImport={() => setImportOpen(true)} />}
+        {(onboardingSeen || activeItems.length > 0 || !canEdit) && <ShoppingList onAdd={() => setComposerOpen(true)} onImport={() => setImportOpen(true)} canEdit={canEdit} />}
       </main>
 
       {canEdit && <button
@@ -230,7 +231,7 @@ function Header({ listName, storeName, budget, currency, accessRole, onOpenLists
 /* ----------------------------------------------------------------------------
    Onboarding — concise, dismissible first-run coachmark focused on adding.
    -------------------------------------------------------------------------- */
-function Onboarding({ onAdd }: { onAdd: () => void }) {
+function Onboarding({ onAdd, onImport }: { onAdd: () => void; onImport: () => void }) {
   const dismiss = useShopStore((s) => s.dismissOnboarding);
   const { t } = useI18n();
   return (
@@ -243,9 +244,14 @@ function Onboarding({ onAdd }: { onAdd: () => void }) {
       </div>
       <h2 className="onboarding__title">{t('welcome')}</h2>
       <p className="onboarding__text">{t('welcomeText')}</p>
-      <button className="btn-primary onboarding__cta" onClick={onAdd}>
-        {t('addFirst')}
-      </button>
+      <div className="onboarding__actions">
+        <button className="btn-primary onboarding__cta" onClick={onAdd}>
+          {t('addFirst')}
+        </button>
+        <button className="btn-ghost onboarding__cta" onClick={onImport}>
+          <FileUp size={16} /> {t('importPdf')}
+        </button>
+      </div>
     </div>
   );
 }

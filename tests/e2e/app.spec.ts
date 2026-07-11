@@ -103,7 +103,6 @@ test('every region automatically selects a readable currency option', async ({ p
 });
 
 test('PDF import explains local parsing and AI privacy before upload', async ({ page }) => {
-  await page.getByRole('button', { name: 'Switch or manage lists' }).click();
   await page.getByRole('button', { name: 'Import PDF' }).click();
   await expect(page.getByRole('heading', { name: 'Import shopping invoice' })).toBeVisible();
   await expect(page.getByText('It is read on this device', { exact: false })).toBeVisible();
@@ -111,6 +110,13 @@ test('PDF import explains local parsing and AI privacy before upload', async ({ 
   await expect(page.getByText('PDF only · up to 10 MB and 20 pages')).toBeVisible();
   const results = await new AxeBuilder({ page }).analyze();
   expect(results.violations.filter((violation) => ['serious', 'critical'].includes(violation.impact ?? ''))).toEqual([]);
+});
+
+test('PDF import remains visible after first-run guidance is dismissed', async ({ page }) => {
+  await page.getByRole('button', { name: 'Dismiss' }).click();
+  await expect(page.getByRole('heading', { name: 'Your list is empty' })).toBeVisible();
+  await page.getByRole('button', { name: 'Import PDF' }).click();
+  await expect(page.getByRole('heading', { name: 'Import shopping invoice' })).toBeVisible();
 });
 
 test('list sharing names its scope without requesting contacts', async ({ page }) => {
