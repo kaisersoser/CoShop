@@ -28,6 +28,7 @@ import { SettingsPanel } from './components/SettingsPanel';
 import { startCloudSync, syncNow } from './lib/cloudSync';
 import { supabase } from './lib/supabase';
 import { ShareListPanel } from './components/ShareListPanel';
+import { ImportPdfPanel } from './components/ImportPdfPanel';
 import { useI18n } from './i18n';
 import './App.css';
 
@@ -56,6 +57,7 @@ export default function App() {
   const [listsOpen, setListsOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
 
   useEffect(() => {
     if (!supabase) return;
@@ -102,9 +104,10 @@ export default function App() {
       </button>}
 
       {composerOpen && <AddItemComposer onClose={() => setComposerOpen(false)} />}
-      {listsOpen && <ListManager onClose={() => setListsOpen(false)} />}
+      {listsOpen && <ListManager onClose={() => setListsOpen(false)} onImport={() => { setListsOpen(false); setImportOpen(true); }} />}
       {settingsOpen && <SettingsPanel onClose={() => setSettingsOpen(false)} />}
       {shareOpen && <ShareListPanel list={activeList} onClose={() => setShareOpen(false)} />}
+      {importOpen && <ImportPdfPanel onClose={() => setImportOpen(false)} onImported={() => setImportOpen(false)} />}
 
       {latestTrash && (
         <div className="undo-toast" role="status">

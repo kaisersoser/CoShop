@@ -18,6 +18,8 @@ Zustand, Supabase, and Capacitor. The production candidate is live at
   defaults for the United Kingdom (GBP), France (EUR), Germany (EUR), and Spain (EUR); plus
   automatic currency defaults for every displayed region, backup/sync, export, and privacy controls
 - Honest budget totals with missing-price coverage and real shopping progress
+- Private PDF invoice import with local Carrefour parsing, editable item review, optional historical
+  prices, and authenticated AI categorization/English-French-German-Spanish translation
 - Installable offline PWA with desktop/mobile accessibility tests
 - Capacitor-ready platform capability abstractions
 
@@ -44,7 +46,8 @@ The detailed production-readiness architecture, delivery stages, acceptance gate
 are documented in [docs/phase-1-plan.md](docs/phase-1-plan.md).
 
 Copy `.env.example` to a local ignored environment file to enable cloud features. Use only the
-Supabase project URL and publishable key; never put a service-role key in a `VITE_` variable.
+Supabase project URL and publishable key; never put a service-role key in a `VITE_` variable. PDF
+AI enrichment also requires a server-only `OPENAI_API_KEY` in Vercel; never prefix it with `VITE_`.
 
 Database changes live under `supabase/migrations`. Run `supabase/tests/rls.sql` against a safe test
 project after policy changes.

@@ -349,12 +349,14 @@ textarea {
 /* Windows browsers may render a select popup on an OS-owned light surface even when
    the closed control is dark. Explicit option colors prevent light-on-light choices. */
 select.field {
-  color-scheme: dark;
+  /* Edge/Windows ignores option backgrounds in its native popup. Requesting a
+     light popup and dark option text is the only consistently readable pairing. */
+  color-scheme: light;
 }
 select.field option,
 select.field optgroup {
-  color: #f0fdf4;
-  background-color: #06110d;
+  color: #07110d;
+  background-color: #f0fdf4;
 }
 
 /* ----------------------------------------------------------------------------

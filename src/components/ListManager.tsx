@@ -9,6 +9,7 @@ import {
   Trash2,
   Store as StoreIcon,
   ListChecks,
+  FileUp,
 } from 'lucide-react';
 import {
   useShopStore,
@@ -24,9 +25,10 @@ import { useI18n } from '../i18n';
 
 interface ListManagerProps {
   onClose: () => void;
+  onImport: () => void;
 }
 
-export function ListManager({ onClose }: ListManagerProps) {
+export function ListManager({ onClose, onImport }: ListManagerProps) {
   const lists = useShopStore((s) => s.lists);
   const itemsByList = useShopStore((s) => s.itemsByList);
   const activeListId = useShopStore((s) => s.activeListId);
@@ -181,6 +183,7 @@ export function ListManager({ onClose }: ListManagerProps) {
             <Plus size={16} /> {t('new')}
           </button>
         </div>
+        <button className="btn-ghost list-manager__import" onClick={onImport}><FileUp size={16} /> {t('importPdf')}</button>
 
         {/* Store tag for the active list */}
         {activeList && (

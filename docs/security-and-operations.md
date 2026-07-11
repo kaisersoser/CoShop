@@ -10,10 +10,16 @@
   expire after seven days. Preview responses expose list name and requested role, never item data.
 - Phone OTP stays disabled until provider credentials, sender registration, geographic controls,
   rate limits, delivery monitoring, and abuse alerts are configured outside the client.
+- PDF invoices are parsed locally and are neither stored nor uploaded. AI enrichment is explicit,
+  authenticated, limited to product names/EANs/retailer departments, schema-constrained, capped at
+  100 rows and five requests per ten minutes per warm function instance, and configured with
+  `store: false`. Customer, address, order, payment, price, and quantity data are excluded.
+- `OPENAI_API_KEY` is server-only and must never use the `VITE_` prefix. Rotate it immediately if it
+  appears in a client bundle, log, commit, support message, or screenshot.
 
 ## Incident runbook
 
-1. Disable cloud features by removing the two `VITE_SUPABASE_*` deployment variables; guest mode remains operational.
+1. Disable cloud features by removing the two `VITE_SUPABASE_*` deployment variables; guest mode remains operational. Remove `OPENAI_API_KEY` separately to disable AI enrichment while preserving local PDF import.
 2. Preserve database and Auth logs, note the UTC detection time, affected household IDs, and release SHA. Do not copy list contents into tickets.
 3. Revoke affected sessions or publishable keys in Supabase when credential misuse is suspected.
 4. Apply schema changes through a new numbered migration. Run security/performance advisors and the RLS isolation test before restoring cloud features.

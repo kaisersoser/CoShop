@@ -74,4 +74,15 @@ describe('shopping state', () => {
     expect(defaultListName('de', 'DE', date)).toMatch(/^Einkauf /);
     expect(defaultListName('es', 'ES', date)).toMatch(/^Compra del /);
   });
+  it('imports a complete list atomically with its retailer and currency', () => {
+    const id = useShopStore.getState().importList({
+      name: 'Carrefour · 2026-06-20', currency: 'EUR', storeName: 'Carrefour',
+      items: [{ name: 'Bananas', catalogId: 'ean:3276558440996', category: 'produce-fruit', quantity: 2, price: 0.99 }],
+    });
+    const state = useShopStore.getState();
+    expect(state.activeListId).toBe(id);
+    expect(state.lists.find((list) => list.id === id)).toMatchObject({ name: 'Carrefour · 2026-06-20', currency: 'EUR' });
+    expect(state.itemsByList[id][0]).toMatchObject({ name: 'Bananas', catalogId: 'ean:3276558440996', quantity: 2, price: 0.99, isPurchased: false });
+    expect(state.stores.find((store) => store.name === 'Carrefour')).toBeTruthy();
+  });
 });

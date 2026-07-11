@@ -46,6 +46,12 @@ export interface AddItemInput {
   photoRef?: string;
   storeIds?: string[];
 }
+export interface ImportListInput {
+  name: string;
+  currency: string;
+  storeName?: string;
+  items: AddItemInput[];
+}
 
 export interface TrashEntry {
   id: string;
@@ -77,6 +83,7 @@ export interface ShopState {
   setListCurrency: (id: string, currency: string) => void;
   setListStore: (id: string, store: { name: string; address?: string } | null) => void;
   addItem: (input: AddItemInput) => void;
+  importList: (input: ImportListInput) => string;
   toggleItemStatus: (id: string) => void;
   updateItem: (id: string, patch: Partial<Omit<ShoppingItem, 'id' | 'createdAt'>>) => void;
   deleteItem: (id: string) => void;
@@ -177,6 +184,21 @@ export const useShopStore = create<ShopState>()(persist((set, get) => ({
     return { stores: existing ? s.stores : [...s.stores, { id: storeId, name: input.name.trim(), address: input.address }], lists: s.lists.map((l) => l.id === id ? { ...l, storeId, updatedAt: Date.now() } : l) };
   }),
   addItem: (input) => set((s) => { const id = s.activeListId; if (s.lists.find((list) => list.id === id)?.accessRole === 'viewer') return s; return { itemsByList: { ...s.itemsByList, [id]: [buildItem(input, s.categoryPreferences), ...(s.itemsByList[id] ?? [])] }, lists: touch(s.lists, id), onboardingSeen: true }; }),
+  importList: (input) => {
+    const id = uid(); const now = Date.now();
+    set((s) => {
+      const storeName = input.storeName?.trim();
+      const existingStore = storeName ? s.stores.find((store) => normalize(store.name) === normalize(storeName)) : undefined;
+      const storeId = storeName ? existingStore?.id ?? uid() : undefined;
+      const stores = storeName && !existingStore ? [...s.stores, { id: storeId!, name: storeName }] : s.stores;
+      return {
+        lists: [...s.lists, { id, name: input.name.trim() || defaultListName(s.preferences.language, s.preferences.region), currency: input.currency, storeId, createdAt: now, updatedAt: now }],
+        itemsByList: { ...s.itemsByList, [id]: input.items.map((item) => buildItem(item, s.categoryPreferences)) },
+        stores, activeListId: id, onboardingSeen: true,
+      };
+    });
+    return id;
+  },
   toggleItemStatus: (itemId) => set((s) => { const id = s.activeListId; if (s.lists.find((list) => list.id === id)?.accessRole === 'viewer') return s; return { itemsByList: { ...s.itemsByList, [id]: (s.itemsByList[id] ?? []).map((it) => it.id === itemId ? { ...it, isPurchased: !it.isPurchased, updatedAt: Date.now() } : it) }, lists: touch(s.lists, id) }; }),
   updateItem: (itemId, patch) => set((s) => { const id = s.activeListId; if (s.lists.find((list) => list.id === id)?.accessRole === 'viewer') return s; return { itemsByList: { ...s.itemsByList, [id]: (s.itemsByList[id] ?? []).map((it) => it.id === itemId ? { ...it, ...patch, updatedAt: Date.now() } : it) }, lists: touch(s.lists, id) }; }),
   deleteItem: (itemId) => set((s) => {

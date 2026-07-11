@@ -422,6 +422,9 @@ it cannot ship before all earlier gates pass.
 - Store money as integer minor units in new domain entities.
 - Convert legacy floats deterministically during migration.
 - Render using `Intl.NumberFormat`.
+- Import text-based retailer invoices locally, retain source identifiers and historical price basis,
+  and require editable review. AI category/translation enrichment sends only minimized product data,
+  uses a strict category schema, preserves deterministic quantities/prices/EANs, and remains optional.
 - Distinguish estimated and actual price and disclose incomplete estimates.
 - Show price coverage and unpriced-item count; label incomplete totals as known/partial rather than
   silently treating missing prices as a complete zero-value estimate (UX-03).

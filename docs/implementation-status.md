@@ -17,15 +17,19 @@ Updated 11 July 2026. This is the evidence ledger for the production-readiness p
 - Localized English, French, German, and Spanish shopping, settings, account, list-management,
   invitation, category, date, number, and money experiences. United Kingdom, France, Germany, and
   Spain presets apply GBP/EUR and the expected language while keeping every choice editable.
-- Native select controls use an explicit dark color scheme and high-contrast option colors; every
+- Native select controls use explicit high-contrast dark text on the Windows/Edge light popup; every
   selectable region automatically applies its ISO currency while preserving manual overrides.
+- Text-based Carrefour PDF invoices are parsed locally into EAN, delivered quantity, historical
+  unit price, retailer department, date, and currency. Signed-in users may explicitly send only
+  product identifiers/names/departments for schema-constrained AI category assignment and optional
+  English, French, German, or Spanish translation before editable, atomic import.
 - Versioned database migrations, generated client types, private Storage policy, security/performance advisor pass review, and executable cross-household RLS test.
 - GitHub CI, zero known npm audit vulnerabilities, Vercel security headers, error recovery boundary, privacy notice, and incident/rollback runbook.
 
 ## Evidence
 
 - `npm run check`: TypeScript, unit tests, production build, PWA generation, and production audit pass.
-- `npm run test:e2e`: 18 guest-value, localization, dropdown-contrast, currency-default,
+- `npm run test:e2e`: 20 guest-value, localization, PDF-import privacy, dropdown-contrast, currency-default,
   accessibility, offline-restart, and deployment-mode checks pass on desktop and mobile Chromium.
 - `npm run cap:sync`: Capacitor 8 web sync passes.
 - `supabase/tests/rls.sql`: connected project returned only the acting household and raised no isolation failure.

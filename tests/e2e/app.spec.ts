@@ -99,7 +99,18 @@ test('every region automatically selects a readable currency option', async ({ p
     const style = getComputedStyle(option);
     return { color: style.color, background: style.backgroundColor };
   });
-  expect(colors).toEqual({ color: 'rgb(240, 253, 244)', background: 'rgb(6, 17, 13)' });
+  expect(colors).toEqual({ color: 'rgb(7, 17, 13)', background: 'rgb(240, 253, 244)' });
+});
+
+test('PDF import explains local parsing and AI privacy before upload', async ({ page }) => {
+  await page.getByRole('button', { name: 'Switch or manage lists' }).click();
+  await page.getByRole('button', { name: 'Import PDF' }).click();
+  await expect(page.getByRole('heading', { name: 'Import shopping invoice' })).toBeVisible();
+  await expect(page.getByText('It is read on this device', { exact: false })).toBeVisible();
+  await expect(page.getByLabel('Imported item language')).toHaveValue('en');
+  await expect(page.getByText('PDF only · up to 10 MB and 20 pages')).toBeVisible();
+  const results = await new AxeBuilder({ page }).analyze();
+  expect(results.violations.filter((violation) => ['serious', 'critical'].includes(violation.impact ?? ''))).toEqual([]);
 });
 
 test('list sharing names its scope without requesting contacts', async ({ page }) => {
