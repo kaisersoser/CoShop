@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { Tag, ChevronDown, Check } from 'lucide-react';
 import { CATEGORIES, getCategory } from '../data/categories';
 import { CategoryIcon } from './categoryIcon';
+import { useI18n } from '../i18n';
 
 /* ============================================================================
    CategorySelect — compact glassmorphism dropdown for re-filing an item's
@@ -29,6 +30,7 @@ export function CategorySelect({ value, onChange }: CategorySelectProps) {
   const menuRef = useRef<HTMLDivElement>(null);
 
   const current = getCategory(value);
+  const { t, categoryLabel } = useI18n();
 
   const place = () => {
     const el = triggerRef.current;
@@ -83,10 +85,10 @@ export function CategorySelect({ value, onChange }: CategorySelectProps) {
         onClick={() => setOpen((o) => !o)}
         aria-haspopup="listbox"
         aria-expanded={open}
-        aria-label={`Category: ${current.label}`}
+        aria-label={t('categoryAria', { category: categoryLabel(current.id) })}
       >
         <Tag size={12} />
-        <span className="category-select__label">{current.label}</span>
+        <span className="category-select__label">{categoryLabel(current.id)}</span>
         <ChevronDown size={12} className="category-select__chevron" />
       </button>
 
@@ -115,7 +117,7 @@ export function CategorySelect({ value, onChange }: CategorySelectProps) {
                   <span className="category-menu__icon">
                     <CategoryIcon name={c.icon} size={14} />
                   </span>
-                  <span className="category-menu__label">{c.label}</span>
+                  <span className="category-menu__label">{categoryLabel(c.id)}</span>
                   {selected && <Check size={14} className="category-menu__check" />}
                 </button>
               );

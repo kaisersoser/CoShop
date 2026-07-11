@@ -15,6 +15,7 @@ import {
   selectActiveList,
   selectActiveStore,
 } from '../store/store';
+import { useI18n } from '../i18n';
 
 /* ============================================================================
    ListManager — create / name / switch / duplicate / delete lists, and tag
@@ -38,6 +39,7 @@ export function ListManager({ onClose }: ListManagerProps) {
   const deleteList = useShopStore((s) => s.deleteList);
   const setActiveList = useShopStore((s) => s.setActiveList);
   const setListStore = useShopStore((s) => s.setListStore);
+  const { t } = useI18n();
 
   const [newName, setNewName] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -77,13 +79,13 @@ export function ListManager({ onClose }: ListManagerProps) {
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
-        aria-label="Manage lists"
+        aria-label={t('manageListsDialog')}
       >
         <div className="modal__head">
           <h3>
-            <ListChecks size={18} /> Your Lists
+            <ListChecks size={18} /> {t('yourLists')}
           </h3>
-          <button className="icon-btn" onClick={onClose} aria-label="Close">
+          <button className="icon-btn" onClick={onClose} aria-label={t('close')}>
             <X size={18} />
           </button>
         </div>
@@ -108,12 +110,12 @@ export function ListManager({ onClose }: ListManagerProps) {
                       autoFocus
                       onChange={(e) => setEditName(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && commitRename(l.id)}
-                      aria-label="List name"
+                      aria-label={t('listName')}
                     />
                     <button
                       className="icon-btn"
                       onClick={() => commitRename(l.id)}
-                      aria-label="Save name"
+                      aria-label={t('saveName')}
                     >
                       <Check size={16} />
                     </button>
@@ -137,14 +139,14 @@ export function ListManager({ onClose }: ListManagerProps) {
                           setEditingId(l.id);
                           setEditName(l.name);
                         }}
-                        aria-label={`Rename ${l.name}`}
+                        aria-label={t('renameList', { name: l.name })}
                       >
                         <Pencil size={14} />
                       </button>
                       <button
                         className="icon-btn"
                         onClick={() => duplicateList(l.id)}
-                        aria-label={`Duplicate ${l.name}`}
+                        aria-label={t('duplicateList', { name: l.name })}
                       >
                         <Copy size={14} />
                       </button>
@@ -152,8 +154,8 @@ export function ListManager({ onClose }: ListManagerProps) {
                         className="icon-btn list-manager__delete"
                         onClick={() => deleteList(l.id)}
                         disabled={!canDelete}
-                        aria-label={`Delete ${l.name}`}
-                        title={lists.length <= 1 ? 'Keep at least one list' : !canDelete ? 'Only the list owner can delete this shared list' : 'Delete list'}
+                        aria-label={t('deleteList', { name: l.name })}
+                        title={t(lists.length <= 1 ? 'keepOneList' : !canDelete ? 'ownerDeleteOnly' : 'deleteListTitle')}
                       >
                         <Trash2 size={14} />
                       </button>
@@ -171,12 +173,12 @@ export function ListManager({ onClose }: ListManagerProps) {
             className="field"
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
-            placeholder="New list name (optional)"
+            placeholder={t('newListName')}
             onKeyDown={(e) => e.key === 'Enter' && create()}
-            aria-label="New list name"
+            aria-label={t('newListNameAria')}
           />
           <button className="btn-primary" onClick={create}>
-            <Plus size={16} /> New
+            <Plus size={16} /> {t('new')}
           </button>
         </div>
 
@@ -184,19 +186,19 @@ export function ListManager({ onClose }: ListManagerProps) {
         {activeList && (
           <div className="list-manager__store">
             <label className="composer__label">
-              <StoreIcon size={13} /> Store for “{activeList.name}” (optional)
+              <StoreIcon size={13} /> {t('storeFor', { name: activeList.name })}
             </label>
             <div className="list-manager__store-row">
               <input
                 className="field"
                 value={storeDraft}
                 onChange={(e) => setStoreDraft(e.target.value)}
-                placeholder="e.g. Costco, Whole Foods"
+                placeholder={t('storeExample')}
                 onKeyDown={(e) => e.key === 'Enter' && commitStore()}
-                aria-label="Store name"
+                aria-label={t('storeName')}
               />
               <button className="btn-ghost" onClick={commitStore}>
-                <Check size={15} /> Save
+                <Check size={15} /> {t('save')}
               </button>
             </div>
           </div>

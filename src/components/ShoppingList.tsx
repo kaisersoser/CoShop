@@ -6,6 +6,7 @@ import { ItemRow } from './ItemRow';
 import { CategoryIcon } from './categoryIcon';
 import { CheckCircle2, PackageOpen, Trash2 } from 'lucide-react';
 import './ShoppingList.css';
+import { useI18n } from '../i18n';
 
 /* ============================================================================
    ShoppingList — groups items by product CATEGORY and splits by purchase
@@ -19,6 +20,7 @@ const orderedCategories = (buckets: Record<string, ShoppingItem[]>): string[] =>
 export function ShoppingList({ onAdd, canEdit = true }: { onAdd: () => void; canEdit?: boolean }) {
   const items = useShopStore(selectActiveItems);
   const clearPurchased = useShopStore((s) => s.clearPurchased);
+  const { t } = useI18n();
 
   // Bucket items by category + status for stable, performant rendering.
   const { pendingByCat, purchasedByCat, pendingCount, purchasedCount } = useMemo(() => {
@@ -45,12 +47,12 @@ export function ShoppingList({ onAdd, canEdit = true }: { onAdd: () => void; can
 
   return (
     <div className="shopping-list">
-      <div className="shopping-progress glass" role="status" aria-label={`${purchasedCount} of ${items.length} items purchased`}>
-        <div><span>Shopping progress</span><strong>{purchasedCount} of {items.length}</strong></div>
+      <div className="shopping-progress glass" role="status" aria-label={t('progressAria', { done: purchasedCount, total: items.length })}>
+        <div><span>{t('shoppingProgress')}</span><strong>{t('progressCount', { done: purchasedCount, total: items.length })}</strong></div>
         <div className="shopping-progress__track" aria-hidden="true"><span style={{ width: `${Math.round((purchasedCount / items.length) * 100)}%` }} /></div>
       </div>
       {/* Pending section */}
-      <SectionHeader icon={<PackageOpen size={16} />} title="Pending" count={pendingCount} />
+      <SectionHeader icon={<PackageOpen size={16} />} title={t('pending')} count={pendingCount} />
       <div className="shopping-list__groups">
         {orderedCategories(pendingByCat).map((cat) => (
           <CategoryGroup key={`p-${cat}`} category={cat} items={pendingByCat[cat]} canEdit={canEdit} />
@@ -60,8 +62,8 @@ export function ShoppingList({ onAdd, canEdit = true }: { onAdd: () => void; can
       {pendingCount === 0 && (
         <div className="shopping-list__all-done glass">
           <CheckCircle2 size={28} className="text-grad-svg" />
-          <p>All items in cart. Nice shopping!</p>
-          {canEdit && <button className="btn-ghost" onClick={onAdd}>Add another item</button>}
+          <p>{t('allInCart')}</p>
+          {canEdit && <button className="btn-ghost" onClick={onAdd}>{t('addAnother')}</button>}
         </div>
       )}
 
@@ -70,14 +72,14 @@ export function ShoppingList({ onAdd, canEdit = true }: { onAdd: () => void; can
         <>
           <SectionHeader
             icon={<CheckCircle2 size={16} />}
-            title="Purchased"
+            title={t('purchased')}
             count={purchasedCount}
             action={canEdit ? <button
                 className="btn-ghost shopping-list__clear"
                 onClick={clearPurchased}
-                aria-label="Clear purchased items"
+                aria-label={t('clearPurchased')}
               >
-                <Trash2 size={14} /> Clear
+                <Trash2 size={14} /> {t('clear')}
               </button> : undefined}
           />
           <div className="shopping-list__groups shopping-list__groups--done">
@@ -103,6 +105,7 @@ interface CategoryGroupProps {
 
 function CategoryGroup({ category, items, dimmed, canEdit }: CategoryGroupProps) {
   const meta = getCategory(category);
+  const { categoryLabel } = useI18n();
   return (
     <section className={`store-group glass ${dimmed ? 'store-group--dimmed' : ''}`}>
       <header className="store-group__head">
@@ -110,7 +113,7 @@ function CategoryGroup({ category, items, dimmed, canEdit }: CategoryGroupProps)
           <span className="store-group__icon">
             <CategoryIcon name={meta.icon} size={15} />
           </span>
-          {meta.label}
+          {categoryLabel(meta.id)}
         </h3>
         <span className="store-group__count">{items.length}</span>
       </header>
@@ -149,14 +152,15 @@ function SectionHeader({ icon, title, count, action }: SectionHeaderProps) {
    Empty state
    -------------------------------------------------------------------------- */
 function EmptyState({ onAdd, canEdit }: { onAdd: () => void; canEdit: boolean }) {
+  const { t } = useI18n();
   return (
     <div className="empty-state glass">
       <div className="empty-state__icon">
         <PackageOpen size={36} />
       </div>
-      <h2>Your list is empty</h2>
-      <p>{canEdit ? 'Tap the + button to add your first item. CoShop works offline, so you can shop anywhere.' : 'This shared list does not have any items yet.'}</p>
-      {canEdit && <button className="btn-primary" onClick={onAdd}>Add first item</button>}
+      <h2>{t('emptyTitle')}</h2>
+      <p>{t(canEdit ? 'emptyText' : 'emptyShared')}</p>
+      {canEdit && <button className="btn-primary" onClick={onAdd}>{t('addFirstShort')}</button>}
     </div>
   );
 }

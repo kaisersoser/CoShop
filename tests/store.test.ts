@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { selectEstimatedTotal, selectPriceCoverage, useShopStore } from '../src/store/store';
+import { defaultListName, REGION_DEFAULTS } from '../src/data/preferences';
+import { categoryKey, translate } from '../src/i18n';
 
 const reset = () => {
   const listId = 'test-list';
@@ -45,5 +47,25 @@ describe('shopping state', () => {
     useShopStore.getState().updatePreferences({ region: 'FR', defaultCurrency: 'EUR' });
     const id = useShopStore.getState().createList('Paris groceries');
     expect(useShopStore.getState().lists.find((list) => list.id === id)?.currency).toBe('EUR');
+  });
+  it('defines language and currency defaults for the first four European markets', () => {
+    expect(REGION_DEFAULTS).toEqual({
+      GB: { language: 'en', currency: 'GBP' },
+      FR: { language: 'fr', currency: 'EUR' },
+      DE: { language: 'de', currency: 'EUR' },
+      ES: { language: 'es', currency: 'EUR' },
+    });
+  });
+  it('translates interface copy and category labels with an English fallback', () => {
+    expect(translate('fr', 'settings')).toBe('Paramètres');
+    expect(translate('de', categoryKey('produce-veg'))).toBe('Gemüse');
+    expect(translate('es', 'welcome')).toBe('Te damos la bienvenida a CoShop');
+    expect(translate('unknown', 'settings')).toBe('Settings');
+  });
+  it('creates localized default list names', () => {
+    const date = new Date(2026, 6, 11);
+    expect(defaultListName('fr', 'FR', date)).toMatch(/^Courses du /);
+    expect(defaultListName('de', 'DE', date)).toMatch(/^Einkauf /);
+    expect(defaultListName('es', 'ES', date)).toMatch(/^Compra del /);
   });
 });

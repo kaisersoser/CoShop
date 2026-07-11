@@ -8,7 +8,7 @@ import {
   selectPriceCoverage,
 } from '../store/store';
 import './CostFooter.css';
-import { preferenceLocale } from '../data/preferences';
+import { useI18n } from '../i18n';
 
 /* ============================================================================
    CostFooter — persistent floating bar at the bottom of the viewport.
@@ -24,8 +24,7 @@ export function CostFooter() {
   const budget = activeList?.budget ?? 0;
   const currency = activeList?.currency ?? 'USD';
   const coverage = useShopStore(selectPriceCoverage);
-  const preferences = useShopStore((state) => state.preferences);
-  const locale = preferenceLocale(preferences.language, preferences.region);
+  const { locale, t } = useI18n();
   const inCartTotal = useShopStore(selectInCartTotal);
   const estimatedTotal = useShopStore(selectEstimatedTotal);
 
@@ -49,8 +48,8 @@ export function CostFooter() {
   return (
     <footer className="cost-footer glass-strong" role="status" aria-live="polite">
       {/* Progress bar — visualises spend vs budget */}
-      {coverage.missing > 0 && <p className="cost-footer__coverage">Partial estimate · {coverage.missing} of {coverage.total} item{coverage.total === 1 ? '' : 's'} missing a price</p>}
-      <div className="cost-footer__progress-track" aria-label={hasBudget ? `${money(inCartTotal)} of ${money(budget)} budget used` : undefined} role={hasBudget ? 'progressbar' : undefined} aria-valuemin={hasBudget ? 0 : undefined} aria-valuemax={hasBudget ? budget : undefined} aria-valuenow={hasBudget ? inCartTotal : undefined}>
+      {coverage.missing > 0 && <p className="cost-footer__coverage">{t('partialEstimate', { missing: coverage.missing, total: coverage.total, items: t(coverage.total === 1 ? 'item' : 'items') })}</p>}
+      <div className="cost-footer__progress-track" aria-label={hasBudget ? t('budgetUsed', { used: money(inCartTotal), budget: money(budget) }) : undefined} role={hasBudget ? 'progressbar' : undefined} aria-valuemin={hasBudget ? 0 : undefined} aria-valuemax={hasBudget ? budget : undefined} aria-valuenow={hasBudget ? inCartTotal : undefined}>
         <div
           className={`cost-footer__progress-fill ${overBudget ? 'cost-footer__progress-fill--over' : ''}`}
           style={{ width: `${progressPct}%` }}
@@ -60,20 +59,20 @@ export function CostFooter() {
       <div className="cost-footer__grid">
         <Stat
           icon={<ShoppingCart size={16} />}
-          label="In Cart"
+          label={t('inCart')}
           value={money(inCartTotal)}
           tone="primary"
         />
         <Divider />
         <Stat
           icon={<Receipt size={16} />}
-          label={coverage.missing ? 'Known total' : 'Estimated'}
+          label={t(coverage.missing ? 'knownTotal' : 'estimated')}
           value={money(estimatedTotal)}
         />
         <Divider />
         <Stat
           icon={overBudget ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
-          label={!hasBudget ? 'Remaining' : overBudget ? 'Over by' : 'Remaining'}
+          label={t(overBudget ? 'overBy' : 'remaining')}
           value={hasBudget ? `${overBudget ? '-' : ''}${money(Math.abs(remaining))}` : '—'}
           valueColor={remainingColor}
         />

@@ -4,6 +4,7 @@ import { useShopStore } from '../store/store';
 import { searchCatalog } from '../lib/catalog';
 import { resolveItem } from '../lib/categorize';
 import { getCategory } from '../data/categories';
+import { useI18n } from '../i18n';
 
 /* ============================================================================
    AddItemComposer — bottom-sheet for adding items with catalog autocomplete.
@@ -22,6 +23,7 @@ interface Chosen {
 
 export function AddItemComposer({ onClose }: ComposerProps) {
   const addItem = useShopStore((s) => s.addItem);
+  const { t, categoryLabel } = useI18n();
 
   const draft = (() => { try { return JSON.parse(sessionStorage.getItem('coshop-item-draft') ?? '{}'); } catch { return {}; } })();
   const [name, setName] = useState<string>(draft.name ?? '');
@@ -124,17 +126,17 @@ export function AddItemComposer({ onClose }: ComposerProps) {
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
-        aria-label="Add a new item"
+        aria-label={t('addItemDialog')}
       >
         <div className="composer__handle" />
         <div className="composer__head">
-          <h2>Add Item</h2>
-          <button className="icon-btn" onClick={onClose} aria-label="Close">
+          <h2>{t('addItemTitle')}</h2>
+          <button className="icon-btn" onClick={onClose} aria-label={t('close')}>
             <X size={18} />
           </button>
         </div>
 
-        <label className="composer__label">Item name</label>
+        <label className="composer__label">{t('itemName')}</label>
         <div className="composer__autocomplete">
           <div className="composer__search-field">
             <Search size={16} className="composer__search-icon" />
@@ -144,7 +146,7 @@ export function AddItemComposer({ onClose }: ComposerProps) {
               value={name}
               onChange={(e) => onNameChange(e.target.value)}
               onFocus={() => !chosen && setShowSuggestions(true)}
-              placeholder="Search products, e.g. bananas"
+              placeholder={t('searchProducts')}
               onKeyDown={onNameKeyDown}
               role="combobox"
               aria-autocomplete="list"
@@ -166,7 +168,7 @@ export function AddItemComposer({ onClose }: ComposerProps) {
                       onClick={() => pick(s.product.id, s.product.name, s.product.category)}
                     >
                       <span className="autocomplete-item__name">{s.product.name}</span>
-                      <span className="autocomplete-item__cat">{cat.label}</span>
+                      <span className="autocomplete-item__cat">{categoryLabel(cat.id)}</span>
                     </button>
                   </li>
                 );
@@ -179,15 +181,15 @@ export function AddItemComposer({ onClose }: ComposerProps) {
           <div className="composer__category-preview">
             <Tag size={13} />
             <span>
-              Will be filed under <strong>{previewCategory.label}</strong>
+              {t('filedUnder', { category: categoryLabel(previewCategory.id) })}
             </span>
           </div>
         )}
 
-        <button type="button" className="btn-ghost composer__details-toggle" onClick={() => setDetailsOpen((open) => !open)} aria-expanded={detailsOpen}><SlidersHorizontal size={15} /> {detailsOpen ? 'Hide details' : 'Add price or quantity'}</button>
+        <button type="button" className="btn-ghost composer__details-toggle" onClick={() => setDetailsOpen((open) => !open)} aria-expanded={detailsOpen}><SlidersHorizontal size={15} /> {t(detailsOpen ? 'hideDetails' : 'addPriceQuantity')}</button>
         {detailsOpen && <div className="composer__row">
           <div className="composer__field-group">
-            <label className="composer__label">Unit price (optional)</label>
+            <label className="composer__label">{t('unitPrice')}</label>
             <input
               className="field"
               type="number"
@@ -200,7 +202,7 @@ export function AddItemComposer({ onClose }: ComposerProps) {
             />
           </div>
           <div className="composer__field-group">
-            <label className="composer__label">Qty</label>
+            <label className="composer__label">{t('quantity')}</label>
             <input
               className="field"
               type="number"
@@ -218,7 +220,7 @@ export function AddItemComposer({ onClose }: ComposerProps) {
           onClick={submit}
           disabled={!valid}
         >
-          <Plus size={18} /> Add to list
+          <Plus size={18} /> {t('addToList')}
         </button>
       </div>
     </div>

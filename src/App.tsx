@@ -28,7 +28,7 @@ import { SettingsPanel } from './components/SettingsPanel';
 import { startCloudSync, syncNow } from './lib/cloudSync';
 import { supabase } from './lib/supabase';
 import { ShareListPanel } from './components/ShareListPanel';
-import { preferenceLocale } from './data/preferences';
+import { useI18n } from './i18n';
 import './App.css';
 
 /* ============================================================================
@@ -50,8 +50,7 @@ export default function App() {
   const dismissTrash = useShopStore((s) => s.dismissTrash);
   const canEdit = useShopStore(selectCanEditActive);
   const activeItems = useShopStore(selectActiveItems);
-  const preferences = useShopStore((state) => state.preferences);
-  const locale = preferenceLocale(preferences.language, preferences.region);
+  const { language, t } = useI18n();
 
   const [composerOpen, setComposerOpen] = useState(false);
   const [listsOpen, setListsOpen] = useState(false);
@@ -71,7 +70,9 @@ export default function App() {
     return () => { window.clearTimeout(timer); unsubscribe(); auth.data.subscription.unsubscribe(); window.removeEventListener('online', online); };
   }, []);
 
-  if (!hydrated || !activeList) return <div className="app-loading" role="status">Loading your lists…</div>;
+  useEffect(() => { document.documentElement.lang = language; }, [language]);
+
+  if (!hydrated || !activeList) return <div className="app-loading" role="status">{t('loading')}</div>;
 
   return (
     <div className="app-shell">
@@ -84,7 +85,6 @@ export default function App() {
         onOpenSettings={() => setSettingsOpen(true)}
         onShare={() => setShareOpen(true)}
         accessRole={activeList.accessRole}
-        locale={locale}
         onBudgetChange={(budget) => setListBudget(activeList.id, budget)}
       />
 
@@ -95,7 +95,7 @@ export default function App() {
 
       {canEdit && <button
         className={`fab ${composerOpen ? 'fab--hidden' : ''}`}
-        aria-label="Add item"
+        aria-label={t('addItem')}
         onClick={() => setComposerOpen(true)}
       >
         <Plus size={26} strokeWidth={2.5} />
@@ -108,9 +108,9 @@ export default function App() {
 
       {latestTrash && (
         <div className="undo-toast" role="status">
-          <span>Removed {latestTrash.label}</span>
-          <button onClick={() => restoreTrash(latestTrash.id)}><Undo2 size={15} /> Undo</button>
-          <button className="icon-btn" onClick={() => dismissTrash(latestTrash.id)} aria-label="Dismiss undo"><X size={15} /></button>
+          <span>{t('removed', { name: latestTrash.label })}</span>
+          <button onClick={() => restoreTrash(latestTrash.id)}><Undo2 size={15} /> {t('undo')}</button>
+          <button className="icon-btn" onClick={() => dismissTrash(latestTrash.id)} aria-label={t('dismissUndo')}><X size={15} /></button>
         </div>
       )}
 
@@ -131,11 +131,11 @@ interface HeaderProps {
   onOpenSettings: () => void;
   onShare: () => void;
   accessRole?: 'owner' | 'editor' | 'viewer';
-  locale: string;
   onBudgetChange: (budget: number | undefined) => void;
 }
 
-function Header({ listName, storeName, budget, currency, locale, accessRole, onOpenLists, onOpenSettings, onShare, onBudgetChange }: HeaderProps) {
+function Header({ listName, storeName, budget, currency, accessRole, onOpenLists, onOpenSettings, onShare, onBudgetChange }: HeaderProps) {
+  const { locale, t } = useI18n();
   const [editing, setEditing] = useState(false);
   const [draftBudget, setDraftBudget] = useState(budget !== undefined ? String(budget) : '');
 
@@ -159,18 +159,18 @@ function Header({ listName, storeName, budget, currency, locale, accessRole, onO
           <span className="app-header__brand-text">CoShop</span>
         </div>
         <div className="app-header__top-actions">
-          <button className="icon-btn" aria-label="Share current list" onClick={onShare}><Share2 size={16} /></button>
-          <button className="icon-btn" aria-label="Open settings" onClick={onOpenSettings}><SettingsIcon size={16} /></button>
+          <button className="icon-btn" aria-label={t('shareCurrent')} onClick={onShare}><Share2 size={16} /></button>
+          <button className="icon-btn" aria-label={t('openSettings')} onClick={onOpenSettings}><SettingsIcon size={16} /></button>
           <button
             className="btn-ghost app-header__lists-btn"
             onClick={onOpenLists}
-            aria-label="Switch or manage lists"
+            aria-label={t('manageLists')}
           >
-            <ListChecks size={16} /> Lists
+            <ListChecks size={16} /> {t('lists')}
           </button>
           {accessRole !== 'viewer' && <button
             className="icon-btn"
-            aria-label="Edit budget"
+            aria-label={t('editBudget')}
             onClick={() => setEditing((e) => !e)}
           >
             <Pencil size={16} />
@@ -189,13 +189,13 @@ function Header({ listName, storeName, budget, currency, locale, accessRole, onO
               step="1"
               value={draftBudget}
               onChange={(e) => setDraftBudget(e.target.value)}
-              placeholder="Budget (optional)"
-              aria-label="Budget"
+              placeholder={t('budgetOptional')}
+              aria-label={t('budget')}
               onKeyDown={(e) => e.key === 'Enter' && commit()}
             />
           </div>
           <button className="btn-primary" onClick={commit}>
-            <Check size={16} /> Save
+            <Check size={16} /> {t('save')}
           </button>
         </div>
       ) : (
@@ -213,10 +213,10 @@ function Header({ listName, storeName, budget, currency, locale, accessRole, onO
             {budget !== undefined && budget > 0 && (
               <span className="app-header__budget">
                 <Wallet size={14} />
-                Budget · {new Intl.NumberFormat(locale, { style: 'currency', currency }).format(budget)}
+                {t('budget')} · {new Intl.NumberFormat(locale, { style: 'currency', currency }).format(budget)}
               </span>
             )}
-            {accessRole === 'viewer' && <span className="chip">View only</span>}
+            {accessRole === 'viewer' && <span className="chip">{t('viewOnly')}</span>}
           </div>
         </div>
       )}
@@ -229,21 +229,19 @@ function Header({ listName, storeName, budget, currency, locale, accessRole, onO
    -------------------------------------------------------------------------- */
 function Onboarding({ onAdd }: { onAdd: () => void }) {
   const dismiss = useShopStore((s) => s.dismissOnboarding);
+  const { t } = useI18n();
   return (
     <div className="onboarding glass" role="note">
-      <button className="onboarding__close icon-btn" onClick={dismiss} aria-label="Dismiss">
+      <button className="onboarding__close icon-btn" onClick={dismiss} aria-label={t('dismiss')}>
         <X size={16} />
       </button>
       <div className="onboarding__icon">
         <Sparkles size={20} />
       </div>
-      <h2 className="onboarding__title">Welcome to CoShop</h2>
-      <p className="onboarding__text">
-        Tap the <strong>+</strong> button to add your first item. Search the catalog or just type —
-        we’ll file it under the right aisle automatically.
-      </p>
+      <h2 className="onboarding__title">{t('welcome')}</h2>
+      <p className="onboarding__text">{t('welcomeText')}</p>
       <button className="btn-primary onboarding__cta" onClick={onAdd}>
-        Add my first item
+        {t('addFirst')}
       </button>
     </div>
   );

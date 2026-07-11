@@ -4,6 +4,7 @@ import { categoryForCatalogId, resolveItem } from '../lib/categorize';
 import { OTHER_CATEGORY_ID } from '../data/categories';
 import { clearLegacyLocalState, indexedDbStorage, legacyLocalState } from '../lib/storage';
 import { saveImage } from '../lib/media';
+import { defaultListName, normalizeLanguage, REGION_DEFAULTS } from '../data/preferences';
 
 export interface ShoppingItem {
   id: string;
@@ -89,14 +90,18 @@ export interface ShopState {
 }
 
 const uid = (): string => crypto.randomUUID();
-const defaultListName = (locale?: string): string =>
-  new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric' }).format(new Date()) + ' shopping';
 const normalize = (value: string) => value.trim().toLocaleLowerCase();
 const regionCurrency: Record<string, string> = { US: 'USD', GB: 'GBP', FR: 'EUR', DE: 'EUR', ES: 'EUR', IT: 'EUR', CA: 'CAD', AU: 'AUD', NZ: 'NZD', CH: 'CHF', JP: 'JPY' };
 const initialPreferences = (): UserPreferences => {
   let region = 'US';
-  try { region = new Intl.Locale(navigator.language).region ?? region; } catch { /* use safe default */ }
-  return { region, language: 'en', defaultCurrency: regionCurrency[region] ?? 'USD' };
+  let language = 'en';
+  try {
+    const browserLocale = new Intl.Locale(navigator.language);
+    region = browserLocale.region ?? region;
+    language = normalizeLanguage(browserLocale.language);
+  } catch { /* use safe default */ }
+  const supportedRegion = REGION_DEFAULTS[region];
+  return { region, language: supportedRegion?.language ?? language, defaultCurrency: regionCurrency[region] ?? 'USD' };
 };
 
 const initialState = () => {
@@ -104,7 +109,7 @@ const initialState = () => {
   const now = Date.now();
   const preferences = initialPreferences();
   return {
-    lists: [{ id, name: defaultListName(`${preferences.language}-${preferences.region}`), currency: preferences.defaultCurrency, createdAt: now, updatedAt: now }],
+    lists: [{ id, name: defaultListName(preferences.language, preferences.region), currency: preferences.defaultCurrency, createdAt: now, updatedAt: now }],
     itemsByList: { [id]: [] },
     stores: [] as Store[],
     trash: [] as TrashEntry[],
@@ -142,7 +147,7 @@ export const useShopStore = create<ShopState>()(persist((set, get) => ({
   ...initialState(),
   createList: (name) => {
     const id = uid(); const now = Date.now();
-    set((s) => ({ lists: [...s.lists, { id, name: name?.trim() || defaultListName(`${s.preferences.language}-${s.preferences.region}`), currency: s.preferences.defaultCurrency, createdAt: now, updatedAt: now }], itemsByList: { ...s.itemsByList, [id]: [] }, activeListId: id }));
+    set((s) => ({ lists: [...s.lists, { id, name: name?.trim() || defaultListName(s.preferences.language, s.preferences.region), currency: s.preferences.defaultCurrency, createdAt: now, updatedAt: now }], itemsByList: { ...s.itemsByList, [id]: [] }, activeListId: id }));
     return id;
   },
   renameList: (id, name) => set((s) => ({ lists: s.lists.map((l) => l.id === id && l.accessRole !== 'viewer' ? { ...l, name: name.trim() || l.name, updatedAt: Date.now() } : l) })),

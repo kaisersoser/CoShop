@@ -14,7 +14,9 @@ Zustand, Supabase, and Capacitor. The production candidate is live at
 - Optional email-link backup, household invites, Realtime sync, and private remote photos
 - List-specific viewer/editor invitations through native sharing, SMS, WhatsApp, or Telegram; phone OTP is
   feature-flagged until an SMS provider is configured
-- Consolidated settings for region, language readiness, currency, backup/sync, export, and privacy
+- Consolidated settings with localized English, French, German, and Spanish interfaces; regional
+  defaults for the United Kingdom (GBP), France (EUR), Germany (EUR), and Spain (EUR); plus
+  backup/sync, export, and privacy controls
 - Honest budget totals with missing-price coverage and real shopping progress
 - Installable offline PWA with desktop/mobile accessibility tests
 - Capacitor-ready platform capability abstractions

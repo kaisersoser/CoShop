@@ -11,12 +11,13 @@ import {
   MoreVertical,
 } from 'lucide-react';
 import type { ShoppingItem } from '../store/store';
-import { useShopStore } from '../store/store';
+import { selectActiveList, useShopStore } from '../store/store';
 import { CATEGORIES, OTHER_CATEGORY_ID } from '../data/categories';
 import { capabilities } from '../lib/capabilities';
 import { loadImage, removeImage, saveImage } from '../lib/media';
 import { CategorySelect } from './CategorySelect';
 import './ItemRow.css';
+import { useI18n } from '../i18n';
 
 /* ============================================================================
    ItemRow — single line in the list.
@@ -34,6 +35,8 @@ export function ItemRow({ item, canEdit = true }: ItemRowProps) {
   const deleteItem = useShopStore((s) => s.deleteItem);
   const updateItem = useShopStore((s) => s.updateItem);
   const setItemCategory = useShopStore((s) => s.setItemCategory);
+  const activeList = useShopStore(selectActiveList);
+  const { locale, t } = useI18n();
 
   const [photoOpen, setPhotoOpen] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -49,6 +52,7 @@ export function ItemRow({ item, canEdit = true }: ItemRowProps) {
   const hasPrice = typeof item.price === 'number';
   const lineTotal = hasPrice ? (item.price as number) * item.quantity : null;
   const isOther = item.category === OTHER_CATEGORY_ID;
+  const money = (value: number) => new Intl.NumberFormat(locale, { style: 'currency', currency: activeList?.currency ?? 'EUR' }).format(value);
 
   return (
     <>
@@ -61,7 +65,7 @@ export function ItemRow({ item, canEdit = true }: ItemRowProps) {
           className={`check ${item.isPurchased ? 'check--on' : ''}`}
           onClick={() => toggleItemStatus(item.id)}
           aria-pressed={item.isPurchased}
-          aria-label={item.isPurchased ? 'Mark as pending' : 'Mark as purchased'}
+          aria-label={t(item.isPurchased ? 'markPending' : 'markPurchased')}
           disabled={!canEdit}
         >
           <Check size={16} strokeWidth={3} className="check__tick" />
@@ -75,11 +79,11 @@ export function ItemRow({ item, canEdit = true }: ItemRowProps) {
           <div className="item-row__meta">
             {hasPrice ? (
               <span className="item-row__price">
-                ${(item.price as number).toFixed(2)}
+                {money(item.price as number)}
                 {item.quantity > 1 && <span className="item-row__qty"> × {item.quantity}</span>}
               </span>
             ) : (
-              <span className="item-row__qty">Qty {item.quantity}</span>
+              <span className="item-row__qty">{t('quantity')} {item.quantity}</span>
             )}
             {isOther && canEdit && (
               <CategorySelect
@@ -88,19 +92,19 @@ export function ItemRow({ item, canEdit = true }: ItemRowProps) {
               />
             )}
             {lineTotal !== null && (
-              <span className="item-row__total">${lineTotal.toFixed(2)}</span>
+              <span className="item-row__total">{money(lineTotal)}</span>
             )}
           </div>
         </div>
 
         {/* Actions */}
-        {!canEdit && photoUrl && <button className="icon-btn item-row__photo item-row__photo--has" onClick={() => setPhotoOpen(true)} aria-label="View photo"><img src={photoUrl} alt="" className="item-row__photo-thumb" /></button>}
+        {!canEdit && photoUrl && <button className="icon-btn item-row__photo item-row__photo--has" onClick={() => setPhotoOpen(true)} aria-label={t('viewPhoto')}><img src={photoUrl} alt="" className="item-row__photo-thumb" /></button>}
         {canEdit && <div className="item-row__actions">
           <button
             className={`icon-btn item-row__photo ${photoUrl ? 'item-row__photo--has' : ''}`}
             onClick={() => setPhotoOpen(true)}
-            aria-label={photoUrl ? 'View photo' : 'Add photo'}
-            title={photoUrl ? 'View photo' : 'Add photo'}
+            aria-label={t(photoUrl ? 'viewPhoto' : 'addPhoto')}
+            title={t(photoUrl ? 'viewPhoto' : 'addPhoto')}
           >
             {photoUrl ? (
               <img src={photoUrl} alt="" className="item-row__photo-thumb" />
@@ -109,8 +113,8 @@ export function ItemRow({ item, canEdit = true }: ItemRowProps) {
             )}
           </button>
           <div className="item-row__menu-wrap">
-            <button className="icon-btn" onClick={() => setMenuOpen((open) => !open)} aria-expanded={menuOpen} aria-label={`More actions for ${item.name}`}><MoreVertical size={17} /></button>
-            {menuOpen && <div className="item-row__menu glass-strong"><button onClick={() => { setEditing(true); setMenuOpen(false); }}><Pencil size={15} /> Edit item</button><button className="item-row__delete" onClick={() => { deleteItem(item.id); setMenuOpen(false); }}><Trash2 size={15} /> Remove item</button></div>}
+            <button className="icon-btn" onClick={() => setMenuOpen((open) => !open)} aria-expanded={menuOpen} aria-label={t('moreActions', { name: item.name })}><MoreVertical size={17} /></button>
+            {menuOpen && <div className="item-row__menu glass-strong"><button onClick={() => { setEditing(true); setMenuOpen(false); }}><Pencil size={15} /> {t('editItem')}</button><button className="item-row__delete" onClick={() => { deleteItem(item.id); setMenuOpen(false); }}><Trash2 size={15} /> {t('removeItem')}</button></div>}
           </div>
         </div>}
       </li>
@@ -165,6 +169,7 @@ interface PhotoModalProps {
 }
 
 function PhotoModal({ item, photoUrl, readOnly, onClose, onSave, onClear }: PhotoModalProps) {
+  const { t } = useI18n();
   const [preview, setPreview] = useState<string | undefined>(photoUrl);
   const [error, setError] = useState<string | null>(null);
 
@@ -180,7 +185,7 @@ function PhotoModal({ item, photoUrl, readOnly, onClose, onSave, onClear }: Phot
       const data = await capabilities.camera.pickImage({ camera: true });
       if (data) setPreview(data);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not read this image.');
+      setError(e instanceof Error ? e.message : t('imageError'));
     }
   };
 
@@ -191,11 +196,11 @@ function PhotoModal({ item, photoUrl, readOnly, onClose, onSave, onClear }: Phot
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
-        aria-label={`Photo for ${item.name}`}
+        aria-label={t('photoFor', { name: item.name })}
       >
         <div className="modal__head">
-          <h3>{readOnly ? 'Item Photo' : photoUrl ? 'Item Photo' : 'Add Photo'}</h3>
-          <button className="icon-btn" onClick={onClose} aria-label="Close">
+          <h3>{t(readOnly || photoUrl ? 'itemPhoto' : 'addPhotoTitle')}</h3>
+          <button className="icon-btn" onClick={onClose} aria-label={t('close')}>
             <X size={18} />
           </button>
         </div>
@@ -206,7 +211,7 @@ function PhotoModal({ item, photoUrl, readOnly, onClose, onSave, onClear }: Phot
           ) : (
             <div className="photo-preview__empty">
               <Camera size={36} />
-              <p>Snap a photo or pick an image to remember the exact brand.</p>
+              <p>{t('photoHelp')}</p>
             </div>
           )}
         </div>
@@ -219,16 +224,16 @@ function PhotoModal({ item, photoUrl, readOnly, onClose, onSave, onClear }: Phot
 
         {!readOnly && <div className="modal__actions">
           <button className="btn-primary" onClick={choose}>
-            <Camera size={16} /> {photoUrl ? 'Replace' : 'Choose photo'}
+            <Camera size={16} /> {t(photoUrl ? 'replace' : 'choosePhoto')}
           </button>
           {photoUrl && (
             <button className="btn-ghost" onClick={() => void onClear()}>
-              <Trash2 size={14} /> Remove
+              <Trash2 size={14} /> {t('remove')}
             </button>
           )}
           {preview && preview !== photoUrl && (
             <button className="btn-ghost photo-save" onClick={() => preview && void onSave(preview)}>
-              <Check size={16} /> Save photo
+              <Check size={16} /> {t('savePhoto')}
             </button>
           )}
         </div>}
@@ -248,6 +253,7 @@ interface EditModalProps {
 }
 
 function EditModal({ item, onClose, onSave }: EditModalProps) {
+  const { t, categoryLabel } = useI18n();
   const [name, setName] = useState(item.name);
   const [category, setCategory] = useState(item.category);
   const [price, setPrice] = useState(item.price !== undefined ? String(item.price) : '');
@@ -276,35 +282,35 @@ function EditModal({ item, onClose, onSave }: EditModalProps) {
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
-        aria-label="Edit item"
+        aria-label={t('editItem')}
       >
         <div className="modal__head">
-          <h3>Edit Item</h3>
-          <button className="icon-btn" onClick={onClose} aria-label="Close">
+          <h3>{t('editItemTitle')}</h3>
+          <button className="icon-btn" onClick={onClose} aria-label={t('close')}>
             <X size={18} />
           </button>
         </div>
 
-        <label className="composer__label">Name</label>
+        <label className="composer__label">{t('name')}</label>
         <input className="field" value={name} onChange={(e) => setName(e.target.value)} />
 
-        <label className="composer__label">Category</label>
+        <label className="composer__label">{t('category')}</label>
         <select
           className="field"
           value={category}
           onChange={(e) => setCategory(e.target.value)}
-          aria-label="Category"
+          aria-label={t('category')}
         >
           {CATEGORIES.map((c) => (
             <option key={c.id} value={c.id}>
-              {c.label}
+              {categoryLabel(c.id)}
             </option>
           ))}
         </select>
 
         <div className="composer__row">
           <div className="composer__field-group">
-            <label className="composer__label">Price (optional)</label>
+            <label className="composer__label">{t('priceOptional')}</label>
             <input
               className="field"
               type="number"
@@ -316,7 +322,7 @@ function EditModal({ item, onClose, onSave }: EditModalProps) {
             />
           </div>
           <div className="composer__field-group">
-            <label className="composer__label">Qty</label>
+            <label className="composer__label">{t('quantity')}</label>
             <input
               className="field"
               type="number"
@@ -329,7 +335,7 @@ function EditModal({ item, onClose, onSave }: EditModalProps) {
         </div>
 
         <button className="btn-primary modal__save" onClick={submit}>
-          <Check size={16} /> Save changes
+          <Check size={16} /> {t('saveChanges')}
         </button>
       </div>
     </div>,

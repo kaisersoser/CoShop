@@ -5,8 +5,9 @@ import { Check, Cloud, CloudOff, Download, Globe2, Languages, LogOut, RefreshCw,
 import { startCloudSync, syncNow, watchSync, type SyncState } from '../lib/cloudSync';
 import { cloudConfigured, supabase } from '../lib/supabase';
 import { selectActiveList, useShopStore } from '../store/store';
-import { CURRENCIES, LANGUAGES, REGIONS } from '../data/preferences';
+import { CURRENCIES, LANGUAGES, REGIONS, REGION_DEFAULTS, localizedCurrencyName, localizedRegionName } from '../data/preferences';
 import { AuthForm } from './AuthForm';
+import { useI18n } from '../i18n';
 import './SettingsPanel.css';
 
 export function SettingsPanel({ onClose }: { onClose: () => void }) {
@@ -20,6 +21,7 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
   const activeList = useShopStore(selectActiveList);
   const setListCurrency = useShopStore((state) => state.setListCurrency);
   const canChangeListCurrency = activeList?.accessRole !== 'viewer';
+  const { language, t } = useI18n();
 
   useEffect(() => {
     closeRef.current?.focus();
@@ -31,8 +33,6 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
     const { data } = supabase.auth.onAuthStateChange((_event, next) => { setSession(next); void startCloudSync(next); });
     return () => { data.subscription.unsubscribe(); stopWatch(); window.removeEventListener('keydown', onKey); };
   }, [onClose]);
-
-  useEffect(() => { document.documentElement.lang = preferences.language; }, [preferences.language]);
 
   const exportData = () => {
     const state = useShopStore.getState();
@@ -46,31 +46,37 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
     if (activeList && canChangeListCurrency) setListCurrency(activeList.id, currency);
   };
 
+  const changeRegion = (region: string) => {
+    const defaults = REGION_DEFAULTS[region];
+    updatePreferences({ region, ...(defaults ? { language: defaults.language, defaultCurrency: defaults.currency } : {}) });
+    if (defaults && activeList && canChangeListCurrency) setListCurrency(activeList.id, defaults.currency);
+  };
+
   return createPortal(<div className="modal-overlay" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
     <section className="modal glass-strong settings-panel" role="dialog" aria-modal="true" aria-labelledby="settings-title">
-      <div className="modal__head"><h3 id="settings-title"><Settings size={19} /> Settings</h3><button ref={closeRef} className="icon-btn" onClick={onClose} aria-label="Close"><X size={18} /></button></div>
+      <div className="modal__head"><h3 id="settings-title"><Settings size={19} /> {t('settings')}</h3><button ref={closeRef} className="icon-btn" onClick={onClose} aria-label={t('close')}><X size={18} /></button></div>
 
       <section className="settings-section" aria-labelledby="regional-heading">
-        <div className="settings-section__heading"><Globe2 size={17} /><div><h4 id="regional-heading">Region & formatting</h4><p>Controls dates, number formatting, and the currency used by new lists.</p></div></div>
-        <div className="settings-field"><label htmlFor="settings-region">Region</label><select id="settings-region" className="field" value={preferences.region} onChange={(event) => updatePreferences({ region: event.target.value })}>{REGIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>
-        <div className="settings-field"><label htmlFor="settings-language"><Languages size={14} /> Language</label><select id="settings-language" className="field" value={preferences.language} onChange={(event) => updatePreferences({ language: event.target.value })}>{LANGUAGES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select><small>English is currently available; this preference is ready for future translations.</small></div>
-        <div className="settings-field"><label htmlFor="settings-currency"><WalletCards size={14} /> Currency</label><select id="settings-currency" className="field" value={canChangeListCurrency ? activeList?.currency ?? preferences.defaultCurrency : preferences.defaultCurrency} onChange={(event) => changeCurrency(event.target.value)}>{CURRENCIES.map(([value, label]) => <option key={value} value={value}>{value} — {label}</option>)}</select><small>{canChangeListCurrency ? 'Updates this list and becomes the default for new lists.' : 'Sets the default for new lists; this shared list is view only.'}</small></div>
+        <div className="settings-section__heading"><Globe2 size={17} /><div><h4 id="regional-heading">{t('regionFormatting')}</h4><p>{t('regionHelp')}</p></div></div>
+        <div className="settings-field"><label htmlFor="settings-region">{t('region')}</label><select id="settings-region" className="field" value={preferences.region} onChange={(event) => changeRegion(event.target.value)}>{REGIONS.map(([value, label]) => <option key={value} value={value}>{localizedRegionName(language, value, label)}</option>)}</select></div>
+        <div className="settings-field"><label htmlFor="settings-language"><Languages size={14} /> {t('language')}</label><select id="settings-language" className="field" value={preferences.language} onChange={(event) => updatePreferences({ language: event.target.value })}>{LANGUAGES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select><small>{t('languageHelp')}</small></div>
+        <div className="settings-field"><label htmlFor="settings-currency"><WalletCards size={14} /> {t('currency')}</label><select id="settings-currency" className="field" value={canChangeListCurrency ? activeList?.currency ?? preferences.defaultCurrency : preferences.defaultCurrency} onChange={(event) => changeCurrency(event.target.value)}>{CURRENCIES.map(([value, label]) => <option key={value} value={value}>{value} — {localizedCurrencyName(language, value, label)}</option>)}</select><small>{t(canChangeListCurrency ? 'currencyEditableHelp' : 'currencyViewHelp')}</small></div>
       </section>
 
       <section className="settings-section" aria-labelledby="backup-heading">
-        <div className="settings-section__heading"><Cloud size={17} /><div><h4 id="backup-heading">Account & backup</h4><p>Guest lists stay on this device. Sign in only for backup, sync, and shared lists.</p></div></div>
-        {!cloudConfigured ? <div className="account-panel__notice"><CloudOff size={18} /><div><strong>Local mode</strong><span>Cloud backup has not been configured. Your lists still work offline.</span></div></div>
+        <div className="settings-section__heading"><Cloud size={17} /><div><h4 id="backup-heading">{t('accountBackup')}</h4><p>{t('accountHelp')}</p></div></div>
+        {!cloudConfigured ? <div className="account-panel__notice"><CloudOff size={18} /><div><strong>{t('localMode')}</strong><span>{t('localModeHelp')}</span></div></div>
         : !session ? <AuthForm redirectTo={window.location.origin} onNotice={setNotice} />
-        : <><div className="account-panel__identity"><Check size={16} /><div><strong>Automatic backup on</strong><span>{session.user.email ?? maskPhone(session.user.phone)}</span></div><button className="btn-ghost" onClick={() => supabase?.auth.signOut()}><LogOut size={14} /> Sign out</button></div><div className="account-panel__status" role="status"><span className={`sync-dot sync-dot--${status}`} /><span>{status === 'syncing' ? 'Syncing…' : status === 'synced' ? message || 'Backed up' : message || 'Ready to sync'}</span><button className="icon-btn" onClick={() => void syncNow()} aria-label="Sync now"><RefreshCw size={15} /></button></div></>}
+        : <><div className="account-panel__identity"><Check size={16} /><div><strong>{t('automaticBackup')}</strong><span>{session.user.email ?? maskPhone(session.user.phone, t('verifiedAccount'))}</span></div><button className="btn-ghost" onClick={() => supabase?.auth.signOut()}><LogOut size={14} /> {t('signOut')}</button></div><div className="account-panel__status" role="status"><span className={`sync-dot sync-dot--${status}`} /><span>{status === 'syncing' ? t('syncing') : status === 'synced' ? message || t('backedUp') : message || t('readySync')}</span><button className="icon-btn" onClick={() => void syncNow()} aria-label={t('syncNow')}><RefreshCw size={15} /></button></div></>}
         {notice && <p className="account-panel__feedback" role="status">{notice}</p>}
       </section>
 
       <section className="settings-section" aria-labelledby="data-heading">
-        <div className="settings-section__heading"><Download size={17} /><div><h4 id="data-heading">Your data</h4><p>Export lists and item details at any time.</p></div></div>
-        <div className="account-panel__export"><div><strong>Download JSON export</strong><span>Includes lists, items, stores, and preferences. <a href="/privacy.html" target="_blank" rel="noreferrer">Privacy notice</a></span></div><button className="btn-ghost" onClick={exportData}><Download size={15} /> Export</button></div>
+        <div className="settings-section__heading"><Download size={17} /><div><h4 id="data-heading">{t('yourData')}</h4><p>{t('dataHelp')}</p></div></div>
+        <div className="account-panel__export"><div><strong>{t('downloadExport')}</strong><span>{t('exportIncludes')} <a href="/privacy.html" target="_blank" rel="noreferrer">{t('privacyNotice')}</a></span></div><button className="btn-ghost" onClick={exportData}><Download size={15} /> {t('export')}</button></div>
       </section>
     </section>
   </div>, document.body);
 }
 
-const maskPhone = (phone?: string) => phone ? `${phone.slice(0, 3)}••••${phone.slice(-3)}` : 'Verified account';
+const maskPhone = (phone: string | undefined, fallback: string) => phone ? `${phone.slice(0, 3)}••••${phone.slice(-3)}` : fallback;

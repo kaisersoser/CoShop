@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
+import { translate } from '../i18n';
 
 export class ErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
   state = { failed: false };
@@ -9,6 +10,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, { failed: 
   }
   render() {
     if (!this.state.failed) return this.props.children;
-    return <main className="fatal-error"><h1>CoShop needs a refresh</h1><p>Your lists are stored on this device and have not been removed.</p><button className="btn-primary" onClick={() => window.location.reload()}>Reload safely</button></main>;
+    const language = document.documentElement.lang || navigator.language;
+    return <main className="fatal-error"><h1>{translate(language, 'refreshNeeded')}</h1><p>{translate(language, 'refreshSafe')}</p><button className="btn-primary" onClick={() => window.location.reload()}>{translate(language, 'reloadSafely')}</button></main>;
   }
 }

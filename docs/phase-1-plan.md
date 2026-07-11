@@ -415,7 +415,9 @@ it cannot ship before all earlier gates pass.
 
 ### B5. Locale-safe money and quantities
 
-- Add locale and currency settings with device-locale defaults.
+- Add locale and currency settings with device-locale defaults. English/United Kingdom/GBP,
+  French/France/EUR, German/Germany/EUR, and Spanish/Spain/EUR are implemented as the initial
+  production localization set; language and currency remain independently editable.
 - Store money as integer minor units in new domain entities.
 - Convert legacy floats deterministically during migration.
 - Render using `Intl.NumberFormat`.

@@ -53,11 +53,35 @@ test('settings consolidates regional, backup, and data controls', async ({ page 
 test('regional and currency settings persist', async ({ page }) => {
   await page.getByRole('button', { name: 'Open settings' }).click();
   await page.getByLabel('Region', { exact: true }).selectOption('FR');
-  await page.getByLabel('Currency', { exact: true }).selectOption('EUR');
-  await page.getByRole('button', { name: 'Close' }).click();
+  await expect(page.locator('html')).toHaveAttribute('lang', 'fr');
+  await expect(page.locator('#settings-language')).toHaveValue('fr');
+  await expect(page.locator('#settings-currency')).toHaveValue('EUR');
+  await page.getByRole('button', { name: 'Fermer' }).click();
+  await page.getByRole('button', { name: 'Ouvrir les paramètres' }).click();
+  await expect(page.locator('#settings-region')).toHaveValue('FR');
+  await expect(page.locator('#settings-currency')).toHaveValue('EUR');
+});
+
+test('European market presets localize the interface and currency', async ({ page }) => {
   await page.getByRole('button', { name: 'Open settings' }).click();
-  await expect(page.getByLabel('Region', { exact: true })).toHaveValue('FR');
-  await expect(page.getByLabel('Currency', { exact: true })).toHaveValue('EUR');
+  const region = page.locator('#settings-region');
+  const language = page.locator('#settings-language');
+  const currency = page.locator('#settings-currency');
+
+  await region.selectOption('DE');
+  await expect(page.getByRole('heading', { name: 'Einstellungen' })).toBeVisible();
+  await expect(language).toHaveValue('de');
+  await expect(currency).toHaveValue('EUR');
+
+  await region.selectOption('ES');
+  await expect(page.getByRole('heading', { name: 'Ajustes' })).toBeVisible();
+  await expect(language).toHaveValue('es');
+  await expect(currency).toHaveValue('EUR');
+
+  await region.selectOption('GB');
+  await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
+  await expect(language).toHaveValue('en');
+  await expect(currency).toHaveValue('GBP');
 });
 
 test('list sharing names its scope without requesting contacts', async ({ page }) => {

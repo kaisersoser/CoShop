@@ -1,6 +1,6 @@
 # CoShop implementation status
 
-Updated 10 July 2026. This is the evidence ledger for the production-readiness plan; it does not replace `phase-1-plan.md`.
+Updated 11 July 2026. This is the evidence ledger for the production-readiness plan; it does not replace `phase-1-plan.md`.
 
 ## Shipped in this implementation
 
@@ -14,13 +14,16 @@ Updated 10 July 2026. This is the evidence ledger for the production-readiness p
   copy/SMS/WhatsApp/Telegram fallbacks, secure join previews, and feature-flagged phone/WhatsApp OTP UI.
 - One consolidated list-sharing entry point and a separate settings surface for region, language,
   currency, account/backup, sync, export, and privacy controls.
+- Localized English, French, German, and Spanish shopping, settings, account, list-management,
+  invitation, category, date, number, and money experiences. United Kingdom, France, Germany, and
+  Spain presets apply GBP/EUR and the expected language while keeping every choice editable.
 - Versioned database migrations, generated client types, private Storage policy, security/performance advisor pass review, and executable cross-household RLS test.
 - GitHub CI, zero known npm audit vulnerabilities, Vercel security headers, error recovery boundary, privacy notice, and incident/rollback runbook.
 
 ## Evidence
 
 - `npm run check`: TypeScript, unit tests, production build, PWA generation, and production audit pass.
-- `npm run test:e2e`: guest value flow, accessibility, offline restart, and deployment-mode tests pass on desktop and mobile Chromium.
+- `npm run test:e2e`: 16 guest-value, localization, accessibility, offline-restart, and deployment-mode checks pass on desktop and mobile Chromium.
 - `npm run cap:sync`: Capacitor 8 web sync passes.
 - `supabase/tests/rls.sql`: connected project returned only the acting household and raised no isolation failure.
 - Supabase security advisor: administrative anonymous grants are removed. The remaining anonymous
