@@ -143,6 +143,8 @@ body,
 html {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
+  /* Keep browser-native controls and their popups aligned with the dark UI. */
+  color-scheme: dark;
 }
 
 body {
@@ -342,6 +344,17 @@ textarea {
   border-color: var(--accent-1);
   background: rgba(16, 185, 129, 0.06);
   box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.18);
+}
+
+/* Windows browsers may render a select popup on an OS-owned light surface even when
+   the closed control is dark. Explicit option colors prevent light-on-light choices. */
+select.field {
+  color-scheme: dark;
+}
+select.field option,
+select.field optgroup {
+  color: #f0fdf4;
+  background-color: #06110d;
 }
 
 /* ----------------------------------------------------------------------------

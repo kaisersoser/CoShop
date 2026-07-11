@@ -16,7 +16,7 @@ Zustand, Supabase, and Capacitor. The production candidate is live at
   feature-flagged until an SMS provider is configured
 - Consolidated settings with localized English, French, German, and Spanish interfaces; regional
   defaults for the United Kingdom (GBP), France (EUR), Germany (EUR), and Spain (EUR); plus
-  backup/sync, export, and privacy controls
+  automatic currency defaults for every displayed region, backup/sync, export, and privacy controls
 - Honest budget totals with missing-price coverage and real shopping progress
 - Installable offline PWA with desktop/mobile accessibility tests
 - Capacitor-ready platform capability abstractions

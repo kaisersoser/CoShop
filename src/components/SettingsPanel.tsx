@@ -48,7 +48,7 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
 
   const changeRegion = (region: string) => {
     const defaults = REGION_DEFAULTS[region];
-    updatePreferences({ region, ...(defaults ? { language: defaults.language, defaultCurrency: defaults.currency } : {}) });
+    updatePreferences({ region, ...(defaults ? { defaultCurrency: defaults.currency, ...(defaults.language ? { language: defaults.language } : {}) } : {}) });
     if (defaults && activeList && canChangeListCurrency) setListCurrency(activeList.id, defaults.currency);
   };
 

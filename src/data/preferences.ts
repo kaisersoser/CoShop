@@ -30,11 +30,18 @@ export const localizedCurrencyName = (language: string, code: string, fallback: 
 
 export const preferenceLocale = (language: string, region: string) => `${language}-${region}`;
 
-export const REGION_DEFAULTS: Record<string, { language: string; currency: string }> = {
+export const REGION_DEFAULTS: Record<string, { language?: string; currency: string }> = {
+  US: { currency: 'USD' },
+  CA: { currency: 'CAD' },
   GB: { language: 'en', currency: 'GBP' },
   FR: { language: 'fr', currency: 'EUR' },
   DE: { language: 'de', currency: 'EUR' },
   ES: { language: 'es', currency: 'EUR' },
+  IT: { currency: 'EUR' },
+  CH: { currency: 'CHF' },
+  AU: { currency: 'AUD' },
+  NZ: { currency: 'NZD' },
+  JP: { currency: 'JPY' },
 };
 
 export const SUPPORTED_LANGUAGES = new Set(LANGUAGES.map(([value]) => value));

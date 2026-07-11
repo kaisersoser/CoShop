@@ -49,11 +49,17 @@ describe('shopping state', () => {
     expect(useShopStore.getState().lists.find((list) => list.id === id)?.currency).toBe('EUR');
   });
   it('defines language and currency defaults for the first four European markets', () => {
-    expect(REGION_DEFAULTS).toEqual({
+    expect(REGION_DEFAULTS).toMatchObject({
       GB: { language: 'en', currency: 'GBP' },
       FR: { language: 'fr', currency: 'EUR' },
       DE: { language: 'de', currency: 'EUR' },
       ES: { language: 'es', currency: 'EUR' },
+    });
+  });
+  it('maps every selectable region to its currency', () => {
+    expect(Object.fromEntries(Object.entries(REGION_DEFAULTS).map(([region, defaults]) => [region, defaults.currency]))).toEqual({
+      US: 'USD', CA: 'CAD', GB: 'GBP', FR: 'EUR', DE: 'EUR', ES: 'EUR', IT: 'EUR',
+      CH: 'CHF', AU: 'AUD', NZ: 'NZD', JP: 'JPY',
     });
   });
   it('translates interface copy and category labels with an English fallback', () => {

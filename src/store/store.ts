@@ -91,7 +91,6 @@ export interface ShopState {
 
 const uid = (): string => crypto.randomUUID();
 const normalize = (value: string) => value.trim().toLocaleLowerCase();
-const regionCurrency: Record<string, string> = { US: 'USD', GB: 'GBP', FR: 'EUR', DE: 'EUR', ES: 'EUR', IT: 'EUR', CA: 'CAD', AU: 'AUD', NZ: 'NZD', CH: 'CHF', JP: 'JPY' };
 const initialPreferences = (): UserPreferences => {
   let region = 'US';
   let language = 'en';
@@ -101,7 +100,7 @@ const initialPreferences = (): UserPreferences => {
     language = normalizeLanguage(browserLocale.language);
   } catch { /* use safe default */ }
   const supportedRegion = REGION_DEFAULTS[region];
-  return { region, language: supportedRegion?.language ?? language, defaultCurrency: regionCurrency[region] ?? 'USD' };
+  return { region, language: supportedRegion?.language ?? language, defaultCurrency: supportedRegion?.currency ?? 'USD' };
 };
 
 const initialState = () => {

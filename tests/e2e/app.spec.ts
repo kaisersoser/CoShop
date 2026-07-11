@@ -84,6 +84,24 @@ test('European market presets localize the interface and currency', async ({ pag
   await expect(currency).toHaveValue('GBP');
 });
 
+test('every region automatically selects a readable currency option', async ({ page }) => {
+  await page.getByRole('button', { name: 'Open settings' }).click();
+  const region = page.locator('#settings-region');
+  const currency = page.locator('#settings-currency');
+  const expected = { US: 'USD', CA: 'CAD', GB: 'GBP', FR: 'EUR', DE: 'EUR', ES: 'EUR', IT: 'EUR', CH: 'CHF', AU: 'AUD', NZ: 'NZD', JP: 'JPY' };
+
+  for (const [regionCode, currencyCode] of Object.entries(expected)) {
+    await region.selectOption(regionCode);
+    await expect(currency).toHaveValue(currencyCode);
+  }
+
+  const colors = await currency.locator('option').first().evaluate((option) => {
+    const style = getComputedStyle(option);
+    return { color: style.color, background: style.backgroundColor };
+  });
+  expect(colors).toEqual({ color: 'rgb(240, 253, 244)', background: 'rgb(6, 17, 13)' });
+});
+
 test('list sharing names its scope without requesting contacts', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Share current list' })).toHaveCount(1);
   await page.getByRole('button', { name: 'Share current list' }).click();
