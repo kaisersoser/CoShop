@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import type { Session } from '@supabase/supabase-js';
 import { Check, Cloud, CloudOff, Download, Globe2, Languages, LogOut, RefreshCw, Settings, WalletCards, X } from 'lucide-react';
 import { startCloudSync, syncNow, watchSync, type SyncState } from '../lib/cloudSync';
@@ -9,6 +8,7 @@ import { CURRENCIES, LANGUAGES, REGIONS, REGION_DEFAULTS, localizedCurrencyName,
 import { AuthForm } from './AuthForm';
 import { useI18n } from '../i18n';
 import './SettingsPanel.css';
+import { Dialog } from './Dialog';
 
 export function SettingsPanel({ onClose }: { onClose: () => void }) {
   const [session, setSession] = useState<Session | null>(null);
@@ -24,15 +24,12 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
   const { language, t } = useI18n();
 
   useEffect(() => {
-    closeRef.current?.focus();
-    const onKey = (event: KeyboardEvent) => event.key === 'Escape' && onClose();
-    window.addEventListener('keydown', onKey);
     const stopWatch = watchSync((next, detail) => { setStatus(next); setMessage(detail ?? ''); });
-    if (!supabase) return () => { stopWatch(); window.removeEventListener('keydown', onKey); };
+    if (!supabase) return () => { stopWatch(); };
     void supabase.auth.getSession().then(({ data }) => { setSession(data.session); void startCloudSync(data.session); });
     const { data } = supabase.auth.onAuthStateChange((_event, next) => { setSession(next); void startCloudSync(next); });
-    return () => { data.subscription.unsubscribe(); stopWatch(); window.removeEventListener('keydown', onKey); };
-  }, [onClose]);
+    return () => { data.subscription.unsubscribe(); stopWatch(); };
+  }, []);
 
   const exportData = () => {
     const state = useShopStore.getState();
@@ -52,8 +49,7 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
     if (defaults && activeList && canChangeListCurrency) setListCurrency(activeList.id, defaults.currency);
   };
 
-  return createPortal(<div className="modal-overlay" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-    <section className="modal glass-strong settings-panel" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+  return <Dialog className="settings-panel" onClose={onClose} labelledBy="settings-title" initialFocusRef={closeRef}>
       <div className="modal__head"><h3 id="settings-title"><Settings size={19} /> {t('settings')}</h3><button ref={closeRef} className="icon-btn" onClick={onClose} aria-label={t('close')}><X size={18} /></button></div>
 
       <section className="settings-section" aria-labelledby="regional-heading">
@@ -75,8 +71,7 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
         <div className="settings-section__heading"><Download size={17} /><div><h4 id="data-heading">{t('yourData')}</h4><p>{t('dataHelp')}</p></div></div>
         <div className="account-panel__export"><div><strong>{t('downloadExport')}</strong><span>{t('exportIncludes')} <a href="/privacy.html" target="_blank" rel="noreferrer">{t('privacyNotice')}</a></span></div><button className="btn-ghost" onClick={exportData}><Download size={15} /> {t('export')}</button></div>
       </section>
-    </section>
-  </div>, document.body);
+  </Dialog>;
 }
 
 const maskPhone = (phone: string | undefined, fallback: string) => phone ? `${phone.slice(0, 3)}••••${phone.slice(-3)}` : fallback;

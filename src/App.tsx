@@ -2,17 +2,14 @@ import { useEffect, useState } from 'react';
 import {
   Plus,
   Wallet,
-  Pencil,
   Check,
-  Sparkles,
-  ListChecks,
+  ShoppingBasket,
   Store as StoreIcon,
   ChevronDown,
   X,
   Undo2,
   Share2,
   Settings as SettingsIcon,
-  FileUp,
 } from 'lucide-react';
 import {
   useShopStore,
@@ -37,15 +34,14 @@ import './App.css';
    CoShop — App Container
    ----------------------------------------------------------------------------
    Header (active list name, store tag, budget), the list manager + add-item
-   composer entry points, the category-grouped ShoppingList, the floating
-   CostFooter, and a dismissible first-run onboarding coachmark.
+   composer entry points, the category-grouped ShoppingList, and the compact
+   honest-total action dock.
    ========================================================================== */
 
 export default function App() {
   const activeList = useShopStore(selectActiveList);
   const activeStore = useShopStore(selectActiveStore);
   const setListBudget = useShopStore((s) => s.setListBudget);
-  const onboardingSeen = useShopStore((s) => s.onboardingSeen);
   const hydrated = useShopStore((s) => s.hydrated);
   const latestTrash = useShopStore((s) => s.trash[0]);
   const restoreTrash = useShopStore((s) => s.restoreTrash);
@@ -92,17 +88,15 @@ export default function App() {
       />
 
       <main className="app-main">
-        {!onboardingSeen && canEdit && <Onboarding onAdd={() => setComposerOpen(true)} onImport={() => setImportOpen(true)} />}
-        {(onboardingSeen || activeItems.length > 0 || !canEdit) && <ShoppingList onAdd={() => setComposerOpen(true)} onImport={() => setImportOpen(true)} canEdit={canEdit} />}
+        <ShoppingList onAdd={() => setComposerOpen(true)} onImport={() => setImportOpen(true)} canEdit={canEdit} />
       </main>
 
-      {canEdit && <button
-        className={`fab ${composerOpen ? 'fab--hidden' : ''}`}
-        aria-label={t('addItem')}
-        onClick={() => setComposerOpen(true)}
-      >
-        <Plus size={26} strokeWidth={2.5} />
-      </button>}
+      {activeItems.length > 0 && <div className="shopping-dock" aria-label={t('shoppingSummary')}>
+        <CostFooter />
+        {canEdit && <button className="btn-primary shopping-dock__add" onClick={() => setComposerOpen(true)}>
+          <Plus size={18} /> {t('addItem')}
+        </button>}
+      </div>}
 
       {composerOpen && <AddItemComposer onClose={() => setComposerOpen(false)} />}
       {listsOpen && <ListManager onClose={() => setListsOpen(false)} onImport={() => { setListsOpen(false); setImportOpen(true); }} />}
@@ -117,8 +111,6 @@ export default function App() {
           <button className="icon-btn" onClick={() => dismissTrash(latestTrash.id)} aria-label={t('dismissUndo')}><X size={15} /></button>
         </div>
       )}
-
-      <CostFooter />
     </div>
   );
 }
@@ -154,31 +146,17 @@ function Header({ listName, storeName, budget, currency, accessRole, onOpenLists
   };
 
   return (
-    <header className="app-header glass-strong">
+    <header className="app-header">
       <div className="app-header__top">
         <div className="app-header__brand">
           <div className="app-header__logo">
-            <Sparkles size={18} strokeWidth={2.4} />
+            <ShoppingBasket size={18} strokeWidth={2.2} />
           </div>
           <span className="app-header__brand-text">CoShop</span>
         </div>
         <div className="app-header__top-actions">
           <button className="icon-btn" aria-label={t('shareCurrent')} onClick={onShare}><Share2 size={16} /></button>
           <button className="icon-btn" aria-label={t('openSettings')} onClick={onOpenSettings}><SettingsIcon size={16} /></button>
-          <button
-            className="btn-ghost app-header__lists-btn"
-            onClick={onOpenLists}
-            aria-label={t('manageLists')}
-          >
-            <ListChecks size={16} /> {t('lists')}
-          </button>
-          {accessRole !== 'viewer' && <button
-            className="icon-btn"
-            aria-label={t('editBudget')}
-            onClick={() => setEditing((e) => !e)}
-          >
-            <Pencil size={16} />
-          </button>}
         </div>
       </div>
 
@@ -204,54 +182,24 @@ function Header({ listName, storeName, budget, currency, accessRole, onOpenLists
         </div>
       ) : (
         <div className="app-header__meta">
-          <button className="app-header__list-switch" onClick={onOpenLists}>
+          <button className="app-header__list-switch" onClick={onOpenLists} aria-label={t('manageLists')}>
             <h1 className="app-header__week">{listName}</h1>
             <ChevronDown size={20} className="app-header__list-chevron" />
           </button>
           <div className="app-header__tags">
             {storeName && (
-              <span className="chip app-header__store-chip">
+              <span className="app-header__store-chip">
                 <StoreIcon size={12} /> {storeName}
               </span>
             )}
-            {budget !== undefined && budget > 0 && (
-              <span className="app-header__budget">
+            {accessRole !== 'viewer' && <button className="app-header__budget" onClick={() => setEditing(true)}>
                 <Wallet size={14} />
-                {t('budget')} · {new Intl.NumberFormat(locale, { style: 'currency', currency }).format(budget)}
-              </span>
-            )}
-            {accessRole === 'viewer' && <span className="chip">{t('viewOnly')}</span>}
+                {budget !== undefined && budget > 0 ? `${t('budget')} · ${new Intl.NumberFormat(locale, { style: 'currency', currency }).format(budget)}` : t('setBudget')}
+              </button>}
+            {accessRole === 'viewer' && <span className="status-badge">{t('viewOnly')}</span>}
           </div>
         </div>
       )}
     </header>
-  );
-}
-
-/* ----------------------------------------------------------------------------
-   Onboarding — concise, dismissible first-run coachmark focused on adding.
-   -------------------------------------------------------------------------- */
-function Onboarding({ onAdd, onImport }: { onAdd: () => void; onImport: () => void }) {
-  const dismiss = useShopStore((s) => s.dismissOnboarding);
-  const { t } = useI18n();
-  return (
-    <div className="onboarding glass" role="note">
-      <button className="onboarding__close icon-btn" onClick={dismiss} aria-label={t('dismiss')}>
-        <X size={16} />
-      </button>
-      <div className="onboarding__icon">
-        <Sparkles size={20} />
-      </div>
-      <h2 className="onboarding__title">{t('welcome')}</h2>
-      <p className="onboarding__text">{t('welcomeText')}</p>
-      <div className="onboarding__actions">
-        <button className="btn-primary onboarding__cta" onClick={onAdd}>
-          {t('addFirst')}
-        </button>
-        <button className="btn-ghost onboarding__cta" onClick={onImport}>
-          <FileUp size={16} /> {t('importPdf')}
-        </button>
-      </div>
-    </div>
   );
 }

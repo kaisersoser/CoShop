@@ -47,12 +47,12 @@ export function ShoppingList({ onAdd, onImport, canEdit = true }: { onAdd: () =>
 
   return (
     <div className="shopping-list">
-      <div className="shopping-progress glass" role="status" aria-label={t('progressAria', { done: purchasedCount, total: items.length })}>
-        <div><span>{t('shoppingProgress')}</span><strong>{t('progressCount', { done: purchasedCount, total: items.length })}</strong></div>
+      <div className="shopping-progress" role="status" aria-label={t('progressAria', { done: purchasedCount, total: items.length })}>
+        <div><span>{t('shoppingProgress')}</span><strong>{t('progressInCart', { done: purchasedCount, total: items.length })}</strong></div>
         <div className="shopping-progress__track" aria-hidden="true"><span style={{ width: `${Math.round((purchasedCount / items.length) * 100)}%` }} /></div>
       </div>
       {/* Pending section */}
-      <SectionHeader icon={<PackageOpen size={16} />} title={t('pending')} count={pendingCount} />
+      <SectionHeader title={t('pending')} count={pendingCount} />
       <div className="shopping-list__groups">
         {orderedCategories(pendingByCat).map((cat) => (
           <CategoryGroup key={`p-${cat}`} category={cat} items={pendingByCat[cat]} canEdit={canEdit} />
@@ -60,8 +60,8 @@ export function ShoppingList({ onAdd, onImport, canEdit = true }: { onAdd: () =>
       </div>
 
       {pendingCount === 0 && (
-        <div className="shopping-list__all-done glass">
-          <CheckCircle2 size={28} className="text-grad-svg" />
+        <div className="shopping-list__all-done">
+          <CheckCircle2 size={24} />
           <p>{t('allInCart')}</p>
           {canEdit && <button className="btn-ghost" onClick={onAdd}>{t('addAnother')}</button>}
         </div>
@@ -71,7 +71,6 @@ export function ShoppingList({ onAdd, onImport, canEdit = true }: { onAdd: () =>
       {purchasedCount > 0 && (
         <>
           <SectionHeader
-            icon={<CheckCircle2 size={16} />}
             title={t('purchased')}
             count={purchasedCount}
             action={canEdit ? <button
@@ -94,7 +93,7 @@ export function ShoppingList({ onAdd, onImport, canEdit = true }: { onAdd: () =>
 }
 
 /* ----------------------------------------------------------------------------
-   CategoryGroup — a labelled glass card containing rows for a single category.
+   CategoryGroup — a quiet labelled section containing rows for one category.
    -------------------------------------------------------------------------- */
 interface CategoryGroupProps {
   category: string;
@@ -107,7 +106,7 @@ function CategoryGroup({ category, items, dimmed, canEdit }: CategoryGroupProps)
   const meta = getCategory(category);
   const { categoryLabel } = useI18n();
   return (
-    <section className={`store-group glass ${dimmed ? 'store-group--dimmed' : ''}`}>
+    <section className={`store-group ${dimmed ? 'store-group--dimmed' : ''}`}>
       <header className="store-group__head">
         <h3 className="store-group__name">
           <span className="store-group__icon">
@@ -130,16 +129,14 @@ function CategoryGroup({ category, items, dimmed, canEdit }: CategoryGroupProps)
    SectionHeader
    -------------------------------------------------------------------------- */
 interface SectionHeaderProps {
-  icon: React.ReactNode;
   title: string;
   count: number;
   action?: React.ReactNode;
 }
-function SectionHeader({ icon, title, count, action }: SectionHeaderProps) {
+function SectionHeader({ title, count, action }: SectionHeaderProps) {
   return (
     <div className="section-header">
       <div className="section-header__title">
-        <span className="section-header__icon">{icon}</span>
         <h2>{title}</h2>
         <span className="section-header__count">{count}</span>
       </div>
@@ -154,11 +151,11 @@ function SectionHeader({ icon, title, count, action }: SectionHeaderProps) {
 function EmptyState({ onAdd, onImport, canEdit }: { onAdd: () => void; onImport: () => void; canEdit: boolean }) {
   const { t } = useI18n();
   return (
-    <div className="empty-state glass">
+    <div className="empty-state">
       <div className="empty-state__icon">
         <PackageOpen size={36} />
       </div>
-      <h2>{t('emptyTitle')}</h2>
+      <h2>{t(canEdit ? 'emptyTitle' : 'emptySharedTitle')}</h2>
       <p>{t(canEdit ? 'emptyText' : 'emptyShared')}</p>
       {canEdit && <div className="empty-state__actions">
         <button className="btn-primary" onClick={onAdd}>{t('addFirstShort')}</button>

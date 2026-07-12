@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import type { Session } from '@supabase/supabase-js';
-import { Check, FileText, FileUp, ShieldCheck, Sparkles, X } from 'lucide-react';
+import { Check, FileText, FileUp, ShieldCheck, Tags, X } from 'lucide-react';
 import { CATEGORIES } from '../data/categories';
 import { LANGUAGES } from '../data/preferences';
 import { useI18n } from '../i18n';
@@ -9,6 +8,7 @@ import type { ImportedProduct, ImportLanguage, ParsedInvoice } from '../lib/impo
 import { supabase } from '../lib/supabase';
 import { useShopStore } from '../store/store';
 import './ImportPdfPanel.css';
+import { Dialog } from './Dialog';
 
 interface Props { onClose: () => void; onImported: () => void; }
 const DRAFT_KEY = 'coshop-pdf-import-draft';
@@ -38,14 +38,11 @@ export function ImportPdfPanel({ onClose, onImported }: Props) {
   const [aiComplete, setAiComplete] = useState(false);
 
   useEffect(() => {
-    closeRef.current?.focus();
-    const key = (event: KeyboardEvent) => event.key === 'Escape' && onClose();
-    window.addEventListener('keydown', key);
-    if (!supabase) return () => window.removeEventListener('keydown', key);
+    if (!supabase) return;
     void supabase.auth.getSession().then(({ data }) => setSession(data.session));
     const { data } = supabase.auth.onAuthStateChange((_event, next) => setSession(next));
-    return () => { data.subscription.unsubscribe(); window.removeEventListener('keydown', key); };
-  }, [onClose]);
+    return () => { data.subscription.unsubscribe(); };
+  }, []);
 
   useEffect(() => {
     if (invoice) sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ invoice, listName, language, includePrices } satisfies ImportDraft));
@@ -98,8 +95,7 @@ export function ImportPdfPanel({ onClose, onImported }: Props) {
     setInvoice((current) => current ? { ...current, products: current.products.map((item) => ({ ...item, name: item.originalName, confidence: 'source' })) } : current);
   };
 
-  return createPortal(<div className="modal-overlay" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-    <section className="modal glass-strong import-panel" role="dialog" aria-modal="true" aria-labelledby="import-title">
+  return <Dialog className="import-panel" variant="wide" onClose={onClose} labelledBy="import-title" initialFocusRef={closeRef}>
       <div className="modal__head"><h3 id="import-title"><FileText size={19} /> {t('importInvoice')}</h3><button ref={closeRef} className="icon-btn" onClick={onClose} aria-label={t('close')}><X size={18} /></button></div>
       {!invoice ? <>
         <p className="import-panel__intro">{t('importIntro')}</p>
@@ -110,7 +106,7 @@ export function ImportPdfPanel({ onClose, onImported }: Props) {
         <div className="import-panel__summary"><Check size={17} /><div><strong>{invoice.retailer}</strong><span>{t('importSummary', { products: invoice.products.length, units: invoice.declaredUnits ?? invoice.products.reduce((sum, item) => sum + item.quantity, 0), pages: invoice.pageCount })}</span></div></div>
         <label className="settings-field"><span>{t('importedListName')}</span><input className="field" value={listName} onChange={(event) => setListName(event.target.value)} /></label>
         <label className="settings-field"><span>{t('importLanguage')}</span><select className="field" value={language} onChange={(event) => changeLanguage(event.target.value as ImportLanguage)}><option value="original">{t('keepOriginal')}</option>{LANGUAGES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-        <section className="import-panel__ai"><div><Sparkles size={17} /><div><strong>{t('aiEnrichment')}</strong><p>{t('aiPrivacy')}</p></div></div>{session ? <button className="btn-primary" disabled={Boolean(busy)} onClick={() => void enrich()}><Sparkles size={16} /> {busy === 'ai' ? t('enrichingItems', { count: invoice.products.length }) : t(language === 'original' ? 'categorizeWithAi' : 'enrichWithAi')}</button> : <p className="import-panel__signin"><ShieldCheck size={15} /> {t('aiSignInRequired')}</p>}</section>
+        <section className="import-panel__ai"><div><Tags size={17} /><div><strong>{t('aiEnrichment')}</strong><p>{t('aiPrivacy')}</p></div></div>{session ? <button className="btn-primary" disabled={Boolean(busy)} onClick={() => void enrich()}><Tags size={16} /> {busy === 'ai' ? t('enrichingItems', { count: invoice.products.length }) : t(language === 'original' ? 'categorizeWithAi' : 'enrichWithAi')}</button> : <p className="import-panel__signin"><ShieldCheck size={15} /> {t('aiSignInRequired')}</p>}</section>
         {notice && <p className={`account-panel__feedback ${aiComplete ? 'import-panel__success' : ''}`} role="status">{notice}</p>}
         <div className="import-panel__select"><strong>{selected.length} / {invoice.products.length}</strong><button className="btn-ghost" onClick={() => setInvoice({ ...invoice, products: invoice.products.map((item) => ({ ...item, selected: true })) })}>{t('selectAll')}</button><button className="btn-ghost" onClick={() => setInvoice({ ...invoice, products: invoice.products.map((item) => ({ ...item, selected: false })) })}>{t('selectNone')}</button></div>
         <ul className="import-panel__products">{invoice.products.map((item) => <li key={item.id} className={!item.selected ? 'import-product--off' : ''}>
@@ -121,6 +117,5 @@ export function ImportPdfPanel({ onClose, onImported }: Props) {
         <button className="btn-primary import-panel__commit" disabled={!selected.length || Boolean(busy)} onClick={commit}><FileUp size={17} /> {t('importSelected', { count: selected.length })}</button>
       </>}
       {notice && !invoice && <p className="account-panel__feedback" role="alert">{notice}</p>}
-    </section>
-  </div>, document.body);
+  </Dialog>;
 }

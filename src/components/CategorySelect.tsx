@@ -6,7 +6,7 @@ import { CategoryIcon } from './categoryIcon';
 import { useI18n } from '../i18n';
 
 /* ============================================================================
-   CategorySelect — compact glassmorphism dropdown for re-filing an item's
+   CategorySelect — compact dropdown for re-filing an item's
    category. Renders the menu in a portal positioned from the trigger rect, so
    it never clips inside the scrollable list or behind the fixed cost footer.
    ========================================================================== */
@@ -96,7 +96,7 @@ export function CategorySelect({ value, onChange }: CategorySelectProps) {
         createPortal(
           <div
             ref={menuRef}
-            className="category-menu glass-strong"
+            className="category-menu"
             role="listbox"
             style={{ top: coords.top, left: coords.left, width: MENU_W }}
           >

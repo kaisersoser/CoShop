@@ -32,10 +32,10 @@ export function JoinListPage({ token }: { token: string }) {
     } catch (error) { setNotice(error instanceof Error ? error.message : t('acceptInviteError')); setJoining(false); }
   };
 
-  if (preview === undefined) return <main className="join-page"><div className="join-card glass-strong" role="status">{t('checkingInvitation')}</div></main>;
-  if (!cloudConfigured || !preview || !preview.valid) return <main className="join-page"><section className="join-card glass-strong"><ListChecks size={30} /><h1>{t('invitationUnavailable')}</h1><p>{notice || t('invalidInvitation')}</p><a className="btn-ghost" href="/"><ArrowLeft size={16} /> {t('openCoShop')}</a></section></main>;
+  if (preview === undefined) return <main className="join-page"><div className="join-card surface-raised" role="status">{t('checkingInvitation')}</div></main>;
+  if (!cloudConfigured || !preview || !preview.valid) return <main className="join-page"><section className="join-card surface-raised"><ListChecks size={30} /><h1>{t('invitationUnavailable')}</h1><p>{notice || t('invalidInvitation')}</p><a className="btn-ghost" href="/"><ArrowLeft size={16} /> {t('openCoShop')}</a></section></main>;
 
-  return <main className="join-page"><section className="join-card glass-strong" aria-labelledby="join-title">
+  return <main className="join-page"><section className="join-card surface-raised" aria-labelledby="join-title">
     <div className="join-card__brand"><ListChecks size={20} /> CoShop</div>
     <div className="join-card__icon"><ShieldCheck size={30} /></div>
     <h1 id="join-title">{t('invitedTo', { name: preview.listName })}</h1>

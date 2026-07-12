@@ -1,0 +1,85 @@
+.dialog-overlay {
+  position: fixed;
+  z-index: var(--z-overlay);
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: var(--sp-6);
+  background: rgba(3, 8, 13, 0.76);
+}
+
+.dialog-surface {
+  z-index: var(--z-dialog);
+  width: min(100%, 520px);
+  max-height: min(86dvh, 760px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--sp-6);
+  color: var(--text-primary);
+  background: var(--surface-raised);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-dialog);
+  animation: dialog-enter var(--dur-med) var(--ease-out);
+}
+
+.dialog-surface--wide {
+  width: min(100%, 760px);
+}
+
+.dialog-surface--sheet {
+  width: min(100%, 560px);
+}
+
+.modal__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  margin-bottom: var(--sp-6);
+}
+
+.modal__head h2,
+.modal__head h3 {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-lg);
+  line-height: var(--lh-tight);
+}
+
+.modal__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--sp-2);
+  margin-top: var(--sp-6);
+}
+
+@keyframes dialog-enter {
+  from { transform: translateY(8px); }
+}
+
+@media (max-width: 599px) {
+  .dialog-overlay {
+    place-items: end stretch;
+    padding: 0;
+  }
+
+  .dialog-surface {
+    width: 100%;
+    max-width: none;
+    max-height: 92dvh;
+    padding: var(--sp-6) var(--sp-4) calc(var(--sp-6) + env(safe-area-inset-bottom));
+    border-right: 0;
+    border-bottom: 0;
+    border-left: 0;
+    border-radius: var(--r-lg) var(--r-lg) 0 0;
+  }
+
+  .dialog-surface--wide {
+    max-height: 100dvh;
+    min-height: 100dvh;
+    border-radius: 0;
+  }
+}

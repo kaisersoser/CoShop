@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
 import {
   X,
   Plus,
@@ -10,6 +9,7 @@ import {
   Store as StoreIcon,
   ListChecks,
   FileUp,
+  MoreVertical,
 } from 'lucide-react';
 import {
   useShopStore,
@@ -17,6 +17,7 @@ import {
   selectActiveStore,
 } from '../store/store';
 import { useI18n } from '../i18n';
+import { Dialog } from './Dialog';
 
 /* ============================================================================
    ListManager — create / name / switch / duplicate / delete lists, and tag
@@ -45,18 +46,13 @@ export function ListManager({ onClose, onImport }: ListManagerProps) {
 
   const [newName, setNewName] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [storeDraft, setStoreDraft] = useState(activeStore?.name ?? '');
 
   useEffect(() => {
     setStoreDraft(activeStore?.name ?? '');
   }, [activeStore?.name, activeListId]);
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
 
   const create = () => {
     createList(newName);
@@ -74,15 +70,8 @@ export function ListManager({ onClose, onImport }: ListManagerProps) {
     setListStore(activeList.id, trimmed ? { name: trimmed } : null);
   };
 
-  return createPortal(
-    <div className="modal-overlay" onClick={onClose}>
-      <div
-        className="modal glass-strong list-manager"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-label={t('manageListsDialog')}
-      >
+  return (
+    <Dialog className="list-manager" onClose={onClose} ariaLabel={t('manageListsDialog')}>
         <div className="modal__head">
           <h3>
             <ListChecks size={18} /> {t('yourLists')}
@@ -134,33 +123,26 @@ export function ListManager({ onClose, onImport }: ListManagerProps) {
                       <span className="list-manager__name">{l.name}</span>
                       <span className="list-manager__count">{count}</span>
                     </button>
-                    <div className="list-manager__actions">
-                      <button
-                        className="icon-btn"
-                        onClick={() => {
-                          setEditingId(l.id);
-                          setEditName(l.name);
-                        }}
-                        aria-label={t('renameList', { name: l.name })}
-                      >
-                        <Pencil size={14} />
+                    <div
+                      className="list-manager__actions"
+                      onBlur={(event) => {
+                        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOpenMenuId(null);
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Escape' && openMenuId === l.id) {
+                          event.stopPropagation();
+                          setOpenMenuId(null);
+                        }
+                      }}
+                    >
+                      <button className="icon-btn" onClick={() => setOpenMenuId((id) => id === l.id ? null : l.id)} aria-label={t('listActions', { name: l.name })} aria-expanded={openMenuId === l.id}>
+                        <MoreVertical size={18} />
                       </button>
-                      <button
-                        className="icon-btn"
-                        onClick={() => duplicateList(l.id)}
-                        aria-label={t('duplicateList', { name: l.name })}
-                      >
-                        <Copy size={14} />
-                      </button>
-                      <button
-                        className="icon-btn list-manager__delete"
-                        onClick={() => deleteList(l.id)}
-                        disabled={!canDelete}
-                        aria-label={t('deleteList', { name: l.name })}
-                        title={t(lists.length <= 1 ? 'keepOneList' : !canDelete ? 'ownerDeleteOnly' : 'deleteListTitle')}
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                      {openMenuId === l.id && <div className="list-manager__menu" role="menu">
+                        <button role="menuitem" onClick={() => { setEditingId(l.id); setEditName(l.name); setOpenMenuId(null); }}><Pencil size={15} /> {t('rename')}</button>
+                        <button role="menuitem" onClick={() => { duplicateList(l.id); setOpenMenuId(null); }}><Copy size={15} /> {t('duplicate')}</button>
+                        <button role="menuitem" className="list-manager__delete" onClick={() => { deleteList(l.id); setOpenMenuId(null); }} disabled={!canDelete} title={t(lists.length <= 1 ? 'keepOneList' : !canDelete ? 'ownerDeleteOnly' : 'deleteListTitle')}><Trash2 size={15} /> {t('delete')}</button>
+                      </div>}
                     </div>
                   </>
                 )}
@@ -206,8 +188,6 @@ export function ListManager({ onClose, onImport }: ListManagerProps) {
             </div>
           </div>
         )}
-      </div>
-    </div>,
-    document.body,
+    </Dialog>
   );
 }

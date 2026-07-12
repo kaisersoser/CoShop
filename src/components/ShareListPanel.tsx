@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import type { Session } from '@supabase/supabase-js';
 import { Check, Copy, MessageCircle, MessageSquare, Send, Share2, Smartphone, X } from 'lucide-react';
 import type { ShoppingList } from '../store/store';
@@ -8,6 +7,7 @@ import { createListInvite, type CreatedListInvite, type ListAccessRole } from '.
 import { AuthForm } from './AuthForm';
 import './ShareListPanel.css';
 import { useI18n } from '../i18n';
+import { Dialog } from './Dialog';
 
 export function ShareListPanel({ list, onClose }: { list: ShoppingList; onClose: () => void }) {
   const [session, setSession] = useState<Session | null>(null);
@@ -22,14 +22,11 @@ export function ShareListPanel({ list, onClose }: { list: ShoppingList; onClose:
   const { locale, t } = useI18n();
 
   useEffect(() => {
-    closeRef.current?.focus();
-    const keydown = (event: KeyboardEvent) => event.key === 'Escape' && onClose();
-    window.addEventListener('keydown', keydown);
-    if (!supabase) return () => window.removeEventListener('keydown', keydown);
+    if (!supabase) return;
     void supabase.auth.getSession().then(({ data }) => setSession(data.session));
     const { data } = supabase.auth.onAuthStateChange((_event, next) => setSession(next));
-    return () => { data.subscription.unsubscribe(); window.removeEventListener('keydown', keydown); };
-  }, [onClose]);
+    return () => { data.subscription.unsubscribe(); };
+  }, []);
 
   const generate = async () => {
     setBusy(true); setNotice('');
@@ -65,8 +62,7 @@ export function ShareListPanel({ list, onClose }: { list: ShoppingList; onClose:
     window.open(`https://wa.me/${recipient}?text=${encodeURIComponent(shareText)}`, '_blank', 'noopener,noreferrer');
   };
 
-  return createPortal(<div className="modal-overlay" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-    <section className="modal glass-strong share-panel" role="dialog" aria-modal="true" aria-labelledby="share-title">
+  return <Dialog className="share-panel" onClose={onClose} labelledBy="share-title" initialFocusRef={closeRef}>
       <div className="modal__head"><h3 id="share-title"><Share2 size={19} /> {t('shareTitle', { name: list.name })}</h3><button ref={closeRef} className="icon-btn" onClick={onClose} aria-label={t('close')}><X size={18} /></button></div>
       <p className="share-panel__intro">{t('shareIntro')}</p>
       {!cloudConfigured ? <p className="account-panel__feedback">{t('sharingUnavailable')}</p>
@@ -83,6 +79,5 @@ export function ShareListPanel({ list, onClose }: { list: ShoppingList; onClose:
         </>}
       </>}
       {notice && <p className="account-panel__feedback" role="status">{notice}</p>}
-    </section>
-  </div>, document.body);
+  </Dialog>;
 }

@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Plus, X, Search, Tag, SlidersHorizontal } from 'lucide-react';
+import { Check, Plus, X, Search, Tag, SlidersHorizontal } from 'lucide-react';
 import { useShopStore } from '../store/store';
 import { searchCatalog } from '../lib/catalog';
 import { resolveItem } from '../lib/categorize';
 import { getCategory } from '../data/categories';
 import { useI18n } from '../i18n';
+import { Dialog } from './Dialog';
 
 /* ============================================================================
    AddItemComposer — bottom-sheet for adding items with catalog autocomplete.
@@ -33,6 +34,7 @@ export function AddItemComposer({ onClose }: ComposerProps) {
   const [chosen, setChosen] = useState<Chosen | null>(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [highlight, setHighlight] = useState(0);
+  const [addedName, setAddedName] = useState('');
   const nameRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -42,15 +44,6 @@ export function AddItemComposer({ onClose }: ComposerProps) {
   useEffect(() => {
     sessionStorage.setItem('coshop-item-draft', JSON.stringify({ name, price, quantity }));
   }, [name, price, quantity]);
-
-  // Esc closes the composer.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
 
   const suggestions = useMemo(() => {
     if (chosen || name.trim().length < 1) return [];
@@ -92,6 +85,7 @@ export function AddItemComposer({ onClose }: ComposerProps) {
       price: parsedPrice !== undefined && !Number.isNaN(parsedPrice) ? parsedPrice : undefined,
       quantity: Math.max(1, parseInt(quantity, 10) || 1),
     });
+    setAddedName(trimmed);
     // Reset & keep composer open for rapid entry.
     setName('');
     setPrice('');
@@ -113,22 +107,22 @@ export function AddItemComposer({ onClose }: ComposerProps) {
         setHighlight((h) => (h - 1 + suggestions.length) % suggestions.length);
         return;
       }
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const suggestion = suggestions[highlight];
+        if (suggestion) pick(suggestion.product.id, suggestion.product.name, suggestion.product.category);
+        return;
+      }
     }
     if (e.key === 'Enter') { e.preventDefault(); submit(); }
   };
 
   const previewCategory = previewCategoryId ? getCategory(previewCategoryId) : null;
 
+  const activeSuggestionId = showSuggestions && suggestions.length > 0 ? `item-suggestion-${highlight}` : undefined;
+
   return (
-    <div className="composer-overlay" onClick={onClose}>
-      <div
-        className="composer glass-strong"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-label={t('addItemDialog')}
-      >
-        <div className="composer__handle" />
+    <Dialog className="composer" variant="sheet" onClose={onClose} ariaLabel={t('addItemDialog')} initialFocusRef={nameRef}>
         <div className="composer__head">
           <h2>{t('addItemTitle')}</h2>
           <button className="icon-btn" onClick={onClose} aria-label={t('close')}>
@@ -152,17 +146,21 @@ export function AddItemComposer({ onClose }: ComposerProps) {
               aria-autocomplete="list"
               aria-expanded={showSuggestions && suggestions.length > 0}
               aria-controls="item-suggestions"
+              aria-activedescendant={activeSuggestionId}
             />
           </div>
 
           {showSuggestions && suggestions.length > 0 && (
-            <ul id="item-suggestions" className="autocomplete-list glass" role="listbox">
+            <ul id="item-suggestions" className="autocomplete-list" role="listbox">
               {suggestions.map((s, i) => {
                 const cat = getCategory(s.product.category);
                 return (
-                  <li key={s.product.id} role="option" aria-selected={i === highlight}>
+                  <li key={s.product.id} role="none">
                     <button
                       type="button"
+                      id={`item-suggestion-${i}`}
+                      role="option"
+                      aria-selected={i === highlight}
                       className={`autocomplete-item ${i === highlight ? 'autocomplete-item--active' : ''}`}
                       onMouseEnter={() => setHighlight(i)}
                       onClick={() => pick(s.product.id, s.product.name, s.product.category)}
@@ -178,7 +176,7 @@ export function AddItemComposer({ onClose }: ComposerProps) {
         </div>
 
         {previewCategory && (
-          <div className="composer__category-preview">
+          <div className="composer__category-preview" aria-live="polite">
             <Tag size={13} />
             <span>
               {t('filedUnder', { category: categoryLabel(previewCategory.id) })}
@@ -222,7 +220,9 @@ export function AddItemComposer({ onClose }: ComposerProps) {
         >
           <Plus size={18} /> {t('addToList')}
         </button>
-      </div>
-    </div>
+        <p className="composer__feedback" role="status" aria-live="polite">
+          {addedName && <><Check size={15} /> {t('itemAdded', { name: addedName })}</>}
+        </p>
+    </Dialog>
   );
 }

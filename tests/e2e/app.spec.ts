@@ -8,9 +8,8 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('guest creates and completes a list without signup', async ({ page }) => {
-  await expect(page.getByRole('heading', { name: 'Welcome to CoShop' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Your list is empty' })).toHaveCount(0);
-  await page.getByRole('button', { name: 'Add my first item' }).click();
+  await expect(page.getByRole('heading', { name: 'Start your list' })).toBeVisible();
+  await page.getByRole('button', { name: 'Add an item' }).click();
   await page.getByPlaceholder('Search products, e.g. bananas').fill('My exact oat milk');
   await page.getByRole('button', { name: 'Add to list' }).click();
   await page.getByRole('button', { name: 'Close' }).click();
@@ -22,9 +21,85 @@ test('guest creates and completes a list without signup', async ({ page }) => {
 test('core first-run view has no serious accessibility violations', async ({ page }) => {
   const firstRun = await new AxeBuilder({ page }).analyze();
   expect(firstRun.violations.filter((violation) => ['serious', 'critical'].includes(violation.impact ?? ''))).toEqual([]);
-  await page.getByRole('button', { name: 'Add my first item' }).click();
+  await page.getByRole('button', { name: 'Add an item' }).click();
   const composer = await new AxeBuilder({ page }).analyze();
   expect(composer.violations.filter((violation) => ['serious', 'critical'].includes(violation.impact ?? ''))).toEqual([]);
+});
+
+test('add-item dialog traps focus, supports autocomplete, and restores its trigger', async ({ page }) => {
+  const trigger = page.getByRole('button', { name: 'Add an item' });
+  await trigger.click();
+  const input = page.getByPlaceholder('Search products, e.g. bananas');
+  await expect(input).toBeFocused();
+
+  await input.fill('milk');
+  await expect(page.getByRole('listbox')).toBeVisible();
+  await expect(input).toHaveAttribute('aria-activedescendant', /item-suggestion-\d+/);
+  await input.press('ArrowDown');
+  await input.press('Enter');
+  await expect(input).not.toHaveValue('milk');
+
+  await page.getByRole('button', { name: 'Close' }).focus();
+  await page.keyboard.press('Shift+Tab');
+  await expect(page.getByRole('button', { name: 'Add to list' })).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(trigger).toBeFocused();
+});
+
+test('bottom action dock leaves the last list row reachable without horizontal overflow', async ({ page }) => {
+  await page.getByRole('button', { name: 'Add an item' }).click();
+  const input = page.getByPlaceholder('Search products, e.g. bananas');
+  for (let index = 1; index <= 12; index += 1) {
+    await input.fill(`Shopping item ${index}`);
+    await page.getByRole('button', { name: 'Add to list' }).click();
+  }
+  await page.getByRole('button', { name: 'Close' }).click();
+
+  const lastItem = page.getByText('Shopping item 12', { exact: true });
+  await lastItem.scrollIntoViewIfNeeded();
+  const [lastBox, dockBox] = await Promise.all([lastItem.boundingBox(), page.locator('.shopping-dock').boundingBox()]);
+  expect(lastBox).not.toBeNull();
+  expect(dockBox).not.toBeNull();
+  expect((lastBox?.y ?? 0) + (lastBox?.height ?? 0)).toBeLessThanOrEqual((dockBox?.y ?? 0) + 1);
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  expect(overflow).toBeLessThanOrEqual(1);
+  const results = await new AxeBuilder({ page }).analyze();
+  expect(results.violations.filter((violation) => ['serious', 'critical'].includes(violation.impact ?? ''))).toEqual([]);
+});
+
+test('item overflow keeps removal recoverable', async ({ page }) => {
+  await page.getByRole('button', { name: 'Add an item' }).click();
+  await page.getByPlaceholder('Search products, e.g. bananas').fill('Recovery test item');
+  await page.getByRole('button', { name: 'Add to list' }).click();
+  await page.getByRole('button', { name: 'Close' }).click();
+  await page.getByRole('button', { name: 'More actions for Recovery test item' }).click();
+  await page.getByRole('menuitem', { name: 'Remove item' }).click();
+  await expect(page.getByText('Recovery test item', { exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  await expect(page.getByText('Recovery test item', { exact: true })).toBeVisible();
+});
+
+test('list actions menu handles Escape without closing its dialog and focus returns on close', async ({ page }) => {
+  const trigger = page.getByRole('button', { name: 'Switch or manage lists' });
+  await trigger.click();
+  await expect(page.getByRole('heading', { name: 'Your Lists' })).toBeVisible();
+  await page.getByRole('button', { name: /Actions for/ }).click();
+  await expect(page.getByRole('menuitem', { name: 'Rename' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('menuitem', { name: 'Rename' })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Your Lists' })).toBeVisible();
+  const results = await new AxeBuilder({ page }).analyze();
+  expect(results.violations.filter((violation) => ['serious', 'critical'].includes(violation.impact ?? ''))).toEqual([]);
+  await page.getByRole('button', { name: 'Close' }).click();
+  await expect(trigger).toBeFocused();
+});
+
+test('narrow and enlarged-text layouts do not overflow horizontally', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 700 });
+  await page.evaluate(() => { document.documentElement.style.fontSize = '200%'; });
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  expect(overflow).toBeLessThanOrEqual(1);
+  await expect(page.getByRole('button', { name: 'Add an item' })).toBeVisible();
 });
 
 test('installed shell starts while offline', async ({ page, context }) => {
@@ -99,11 +174,11 @@ test('every region automatically selects a readable currency option', async ({ p
     const style = getComputedStyle(option);
     return { color: style.color, background: style.backgroundColor };
   });
-  expect(colors).toEqual({ color: 'rgb(7, 17, 13)', background: 'rgb(240, 253, 244)' });
+  expect(colors).toEqual({ color: 'rgb(11, 17, 23)', background: 'rgb(244, 247, 250)' });
 });
 
 test('PDF import explains local parsing and AI privacy before upload', async ({ page }) => {
-  await page.getByRole('button', { name: 'Import PDF' }).click();
+  await page.getByRole('button', { name: 'Import invoice' }).click();
   await expect(page.getByRole('heading', { name: 'Import shopping invoice' })).toBeVisible();
   await expect(page.getByText('It is read on this device', { exact: false })).toBeVisible();
   await expect(page.getByLabel('Imported item language')).toHaveValue('en');
@@ -112,10 +187,9 @@ test('PDF import explains local parsing and AI privacy before upload', async ({ 
   expect(results.violations.filter((violation) => ['serious', 'critical'].includes(violation.impact ?? ''))).toEqual([]);
 });
 
-test('PDF import remains visible after first-run guidance is dismissed', async ({ page }) => {
-  await page.getByRole('button', { name: 'Dismiss' }).click();
-  await expect(page.getByRole('heading', { name: 'Your list is empty' })).toBeVisible();
-  await page.getByRole('button', { name: 'Import PDF' }).click();
+test('consolidated empty state keeps invoice import available', async ({ page }) => {
+  await expect(page.getByRole('heading', { name: 'Start your list' })).toBeVisible();
+  await page.getByRole('button', { name: 'Import invoice' }).click();
   await expect(page.getByRole('heading', { name: 'Import shopping invoice' })).toBeVisible();
 });
 

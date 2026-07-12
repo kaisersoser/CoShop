@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
 import {
   Check,
   Image as ImageIcon,
@@ -18,6 +17,7 @@ import { loadImage, removeImage, saveImage } from '../lib/media';
 import { CategorySelect } from './CategorySelect';
 import './ItemRow.css';
 import { useI18n } from '../i18n';
+import { Dialog } from './Dialog';
 
 /* ============================================================================
    ItemRow — single line in the list.
@@ -100,21 +100,21 @@ export function ItemRow({ item, canEdit = true }: ItemRowProps) {
         {/* Actions */}
         {!canEdit && photoUrl && <button className="icon-btn item-row__photo item-row__photo--has" onClick={() => setPhotoOpen(true)} aria-label={t('viewPhoto')}><img src={photoUrl} alt="" className="item-row__photo-thumb" /></button>}
         {canEdit && <div className="item-row__actions">
-          <button
-            className={`icon-btn item-row__photo ${photoUrl ? 'item-row__photo--has' : ''}`}
-            onClick={() => setPhotoOpen(true)}
-            aria-label={t(photoUrl ? 'viewPhoto' : 'addPhoto')}
-            title={t(photoUrl ? 'viewPhoto' : 'addPhoto')}
+          {photoUrl && <button className="icon-btn item-row__photo item-row__photo--has" onClick={() => setPhotoOpen(true)} aria-label={t('viewPhoto')} title={t('viewPhoto')}><img src={photoUrl} alt="" className="item-row__photo-thumb" /></button>}
+          <div
+            className="item-row__menu-wrap"
+            onBlur={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setMenuOpen(false);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape' && menuOpen) {
+                event.stopPropagation();
+                setMenuOpen(false);
+              }
+            }}
           >
-            {photoUrl ? (
-              <img src={photoUrl} alt="" className="item-row__photo-thumb" />
-            ) : (
-              <ImageIcon size={16} />
-            )}
-          </button>
-          <div className="item-row__menu-wrap">
             <button className="icon-btn" onClick={() => setMenuOpen((open) => !open)} aria-expanded={menuOpen} aria-label={t('moreActions', { name: item.name })}><MoreVertical size={17} /></button>
-            {menuOpen && <div className="item-row__menu glass-strong"><button onClick={() => { setEditing(true); setMenuOpen(false); }}><Pencil size={15} /> {t('editItem')}</button><button className="item-row__delete" onClick={() => { deleteItem(item.id); setMenuOpen(false); }}><Trash2 size={15} /> {t('removeItem')}</button></div>}
+            {menuOpen && <div className="item-row__menu" role="menu"><button role="menuitem" onClick={() => { setPhotoOpen(true); setMenuOpen(false); }}><ImageIcon size={15} /> {t(photoUrl ? 'viewPhoto' : 'addPhoto')}</button><button role="menuitem" onClick={() => { setEditing(true); setMenuOpen(false); }}><Pencil size={15} /> {t('editItem')}</button><button role="menuitem" className="item-row__delete" onClick={() => { deleteItem(item.id); setMenuOpen(false); }}><Trash2 size={15} /> {t('removeItem')}</button></div>}
           </div>
         </div>}
       </li>
@@ -173,12 +173,6 @@ function PhotoModal({ item, photoUrl, readOnly, onClose, onSave, onClear }: Phot
   const [preview, setPreview] = useState<string | undefined>(photoUrl);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
   const choose = async () => {
     setError(null);
     try {
@@ -189,15 +183,8 @@ function PhotoModal({ item, photoUrl, readOnly, onClose, onSave, onClear }: Phot
     }
   };
 
-  return createPortal(
-    <div className="modal-overlay" onClick={onClose}>
-      <div
-        className="modal glass-strong"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-label={t('photoFor', { name: item.name })}
-      >
+  return (
+    <Dialog onClose={onClose} ariaLabel={t('photoFor', { name: item.name })}>
         <div className="modal__head">
           <h3>{t(readOnly || photoUrl ? 'itemPhoto' : 'addPhotoTitle')}</h3>
           <button className="icon-btn" onClick={onClose} aria-label={t('close')}>
@@ -237,9 +224,7 @@ function PhotoModal({ item, photoUrl, readOnly, onClose, onSave, onClear }: Phot
             </button>
           )}
         </div>}
-      </div>
-    </div>,
-    document.body,
+    </Dialog>
   );
 }
 
@@ -259,12 +244,6 @@ function EditModal({ item, onClose, onSave }: EditModalProps) {
   const [price, setPrice] = useState(item.price !== undefined ? String(item.price) : '');
   const [quantity, setQuantity] = useState(String(item.quantity));
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
   const submit = () => {
     const parsedPrice = price.trim() === '' ? undefined : parseFloat(price);
     onSave({
@@ -275,15 +254,8 @@ function EditModal({ item, onClose, onSave }: EditModalProps) {
     });
   };
 
-  return createPortal(
-    <div className="modal-overlay" onClick={onClose}>
-      <div
-        className="modal glass-strong"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-label={t('editItem')}
-      >
+  return (
+    <Dialog onClose={onClose} ariaLabel={t('editItem')}>
         <div className="modal__head">
           <h3>{t('editItemTitle')}</h3>
           <button className="icon-btn" onClick={onClose} aria-label={t('close')}>
@@ -337,8 +309,6 @@ function EditModal({ item, onClose, onSave }: EditModalProps) {
         <button className="btn-primary modal__save" onClick={submit}>
           <Check size={16} /> {t('saveChanges')}
         </button>
-      </div>
-    </div>,
-    document.body,
+    </Dialog>
   );
 }
