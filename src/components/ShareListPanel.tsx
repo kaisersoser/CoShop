@@ -1,0 +1,83 @@
+import { useEffect, useRef, useState } from 'react';
+import type { Session } from '@supabase/supabase-js';
+import { Check, Copy, MessageCircle, MessageSquare, Send, Share2, Smartphone, X } from 'lucide-react';
+import type { ShoppingList } from '../store/store';
+import { cloudConfigured, supabase } from '../lib/supabase';
+import { createListInvite, type CreatedListInvite, type ListAccessRole } from '../lib/sharing';
+import { AuthForm } from './AuthForm';
+import './ShareListPanel.css';
+import { useI18n } from '../i18n';
+import { Dialog } from './Dialog';
+
+export function ShareListPanel({ list, onClose }: { list: ShoppingList; onClose: () => void }) {
+  const [session, setSession] = useState<Session | null>(null);
+  const [role, setRole] = useState<ListAccessRole>('editor');
+  const [invite, setInvite] = useState<CreatedListInvite | null>(null);
+  const [phone, setPhone] = useState('');
+  const [notice, setNotice] = useState('');
+  const [busy, setBusy] = useState(false);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const canShareList = list.accessRole !== 'viewer';
+  const supportsNativeShare = typeof navigator.share === 'function';
+  const { locale, t } = useI18n();
+
+  useEffect(() => {
+    if (!supabase) return;
+    void supabase.auth.getSession().then(({ data }) => setSession(data.session));
+    const { data } = supabase.auth.onAuthStateChange((_event, next) => setSession(next));
+    return () => { data.subscription.unsubscribe(); };
+  }, []);
+
+  const generate = async () => {
+    setBusy(true); setNotice('');
+    try { setInvite(await createListInvite(list.id, role)); }
+    catch (error) { setNotice(error instanceof Error ? error.message : t('createInviteError')); }
+    finally { setBusy(false); }
+  };
+  const shareRole = invite ? t(invite.role === 'editor' ? 'roleAnEditor' : 'roleAViewer') : '';
+  const shareText = invite ? t('inviteMessage', { name: invite.listName, role: shareRole, url: invite.url }) : '';
+  const copy = async () => {
+    if (!invite) return;
+    try { await navigator.clipboard.writeText(invite.url); setNotice(t('copiedNotice')); }
+    catch { setNotice(t('copyFailed')); }
+  };
+  const nativeShare = async () => {
+    if (!invite || !navigator.share) return;
+    try { await navigator.share({ title: t('nativeShareTitle', { name: invite.listName }), text: t('nativeShareRole', { role: shareRole }), url: invite.url }); }
+    catch (error) { if (error instanceof DOMException && error.name === 'AbortError') return; setNotice(t('shareMenuFailed')); }
+  };
+  const sendSms = () => {
+    if (!invite) return;
+    const recipient = phone.replace(/[^+\d]/g, '');
+    const separator = /iPad|iPhone|iPod/.test(navigator.userAgent) ? '&' : '?';
+    window.location.href = `sms:${recipient}${separator}body=${encodeURIComponent(shareText)}`;
+  };
+  const sendTelegram = () => {
+    if (!invite) return;
+    window.open(`https://t.me/share/url?url=${encodeURIComponent(invite.url)}&text=${encodeURIComponent(shareText)}`, '_blank', 'noopener,noreferrer');
+  };
+  const sendWhatsApp = () => {
+    if (!invite) return;
+    const recipient = phone.replace(/\D/g, '');
+    window.open(`https://wa.me/${recipient}?text=${encodeURIComponent(shareText)}`, '_blank', 'noopener,noreferrer');
+  };
+
+  return <Dialog className="share-panel" onClose={onClose} labelledBy="share-title" initialFocusRef={closeRef}>
+      <div className="modal__head"><h3 id="share-title"><Share2 size={19} /> {t('shareTitle', { name: list.name })}</h3><button ref={closeRef} className="icon-btn" onClick={onClose} aria-label={t('close')}><X size={18} /></button></div>
+      <p className="share-panel__intro">{t('shareIntro')}</p>
+      {!cloudConfigured ? <p className="account-panel__feedback">{t('sharingUnavailable')}</p>
+      : !session ? <><p className="share-panel__intro">{t('shareSignIn')}</p><AuthForm redirectTo={window.location.href} onNotice={setNotice} /></>
+      : !canShareList ? <p className="account-panel__feedback">{t('viewOnlyShare')}</p>
+      : <>
+        <fieldset className="share-panel__roles"><legend>{t('accessLevel')}</legend><label className={role === 'editor' ? 'share-panel__role--active' : ''}><input type="radio" name="invite-role" value="editor" checked={role === 'editor'} onChange={() => { setRole('editor'); setInvite(null); }} /><span><strong>{t('canEdit')}</strong><small>{t('canEditHelp')}</small></span></label><label className={role === 'viewer' ? 'share-panel__role--active' : ''}><input type="radio" name="invite-role" value="viewer" checked={role === 'viewer'} onChange={() => { setRole('viewer'); setInvite(null); }} /><span><strong>{t('viewOnly')}</strong><small>{t('viewOnlyHelp')}</small></span></label></fieldset>
+        {!invite ? <button className="btn-primary" disabled={busy} onClick={() => void generate()}><Share2 size={17} /> {t(busy ? 'creatingLink' : 'createLink')}</button> : <>
+          <div className="share-panel__ready"><Check size={17} /><div><strong>{t('invitationReady')}</strong><span>{t('singleUse', { date: new Intl.DateTimeFormat(locale, { dateStyle: 'medium' }).format(new Date(invite.expiresAt)) })}</span></div></div>
+          {supportsNativeShare && <button className="btn-primary" onClick={() => void nativeShare()}><Smartphone size={17} /> {t('shareApps')}</button>}
+          <div className="share-panel__channels"><button className="btn-ghost" onClick={() => void copy()}><Copy size={16} /> {t('copyLink')}</button><button className="btn-ghost" onClick={sendWhatsApp}><MessageCircle size={16} /> WhatsApp</button><button className="btn-ghost" onClick={sendTelegram}><Send size={16} /> Telegram</button></div>
+          <div className="share-panel__sms"><label htmlFor="invite-phone">{t('phoneSms')} <span>({t('optional')})</span></label><div className="account-panel__row"><input id="invite-phone" className="field" type="tel" inputMode="tel" autoComplete="off" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="+33 6 12 34 56 78" /><button className="btn-ghost" onClick={sendSms}><MessageSquare size={16} /> {t('openSms')}</button></div><small>{t('phonePrivacy')}</small></div>
+          <input className="field share-panel__link" value={invite.url} readOnly aria-label={t('invitationLink')} onFocus={(event) => event.currentTarget.select()} />
+        </>}
+      </>}
+      {notice && <p className="account-panel__feedback" role="status">{notice}</p>}
+  </Dialog>;
+}

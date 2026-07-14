@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
 import {
   X,
   Plus,
@@ -9,12 +8,16 @@ import {
   Trash2,
   Store as StoreIcon,
   ListChecks,
+  FileUp,
+  MoreVertical,
 } from 'lucide-react';
 import {
   useShopStore,
   selectActiveList,
   selectActiveStore,
 } from '../store/store';
+import { useI18n } from '../i18n';
+import { Dialog } from './Dialog';
 
 /* ============================================================================
    ListManager — create / name / switch / duplicate / delete lists, and tag
@@ -23,9 +26,10 @@ import {
 
 interface ListManagerProps {
   onClose: () => void;
+  onImport: () => void;
 }
 
-export function ListManager({ onClose }: ListManagerProps) {
+export function ListManager({ onClose, onImport }: ListManagerProps) {
   const lists = useShopStore((s) => s.lists);
   const itemsByList = useShopStore((s) => s.itemsByList);
   const activeListId = useShopStore((s) => s.activeListId);
@@ -38,21 +42,17 @@ export function ListManager({ onClose }: ListManagerProps) {
   const deleteList = useShopStore((s) => s.deleteList);
   const setActiveList = useShopStore((s) => s.setActiveList);
   const setListStore = useShopStore((s) => s.setListStore);
+  const { t } = useI18n();
 
   const [newName, setNewName] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [storeDraft, setStoreDraft] = useState(activeStore?.name ?? '');
 
   useEffect(() => {
     setStoreDraft(activeStore?.name ?? '');
   }, [activeStore?.name, activeListId]);
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
 
   const create = () => {
     createList(newName);
@@ -70,20 +70,13 @@ export function ListManager({ onClose }: ListManagerProps) {
     setListStore(activeList.id, trimmed ? { name: trimmed } : null);
   };
 
-  return createPortal(
-    <div className="modal-overlay" onClick={onClose}>
-      <div
-        className="modal glass-strong list-manager"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Manage lists"
-      >
+  return (
+    <Dialog className="list-manager" onClose={onClose} ariaLabel={t('manageListsDialog')}>
         <div className="modal__head">
           <h3>
-            <ListChecks size={18} /> Your Lists
+            <ListChecks size={18} /> {t('yourLists')}
           </h3>
-          <button className="icon-btn" onClick={onClose} aria-label="Close">
+          <button className="icon-btn" onClick={onClose} aria-label={t('close')}>
             <X size={18} />
           </button>
         </div>
@@ -94,6 +87,7 @@ export function ListManager({ onClose }: ListManagerProps) {
             const count = itemsByList[l.id]?.length ?? 0;
             const isActive = l.id === activeListId;
             const isEditing = editingId === l.id;
+            const canDelete = lists.length > 1 && (!l.remoteHouseholdId || l.accessRole === 'owner');
             return (
               <li
                 key={l.id}
@@ -107,12 +101,12 @@ export function ListManager({ onClose }: ListManagerProps) {
                       autoFocus
                       onChange={(e) => setEditName(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && commitRename(l.id)}
-                      aria-label="List name"
+                      aria-label={t('listName')}
                     />
                     <button
                       className="icon-btn"
                       onClick={() => commitRename(l.id)}
-                      aria-label="Save name"
+                      aria-label={t('saveName')}
                     >
                       <Check size={16} />
                     </button>
@@ -129,33 +123,26 @@ export function ListManager({ onClose }: ListManagerProps) {
                       <span className="list-manager__name">{l.name}</span>
                       <span className="list-manager__count">{count}</span>
                     </button>
-                    <div className="list-manager__actions">
-                      <button
-                        className="icon-btn"
-                        onClick={() => {
-                          setEditingId(l.id);
-                          setEditName(l.name);
-                        }}
-                        aria-label={`Rename ${l.name}`}
-                      >
-                        <Pencil size={14} />
+                    <div
+                      className="list-manager__actions"
+                      onBlur={(event) => {
+                        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOpenMenuId(null);
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Escape' && openMenuId === l.id) {
+                          event.stopPropagation();
+                          setOpenMenuId(null);
+                        }
+                      }}
+                    >
+                      <button className="icon-btn" onClick={() => setOpenMenuId((id) => id === l.id ? null : l.id)} aria-label={t('listActions', { name: l.name })} aria-expanded={openMenuId === l.id}>
+                        <MoreVertical size={18} />
                       </button>
-                      <button
-                        className="icon-btn"
-                        onClick={() => duplicateList(l.id)}
-                        aria-label={`Duplicate ${l.name}`}
-                      >
-                        <Copy size={14} />
-                      </button>
-                      <button
-                        className="icon-btn list-manager__delete"
-                        onClick={() => deleteList(l.id)}
-                        disabled={lists.length <= 1}
-                        aria-label={`Delete ${l.name}`}
-                        title={lists.length <= 1 ? 'Keep at least one list' : 'Delete list'}
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                      {openMenuId === l.id && <div className="list-manager__menu" role="menu">
+                        <button role="menuitem" onClick={() => { setEditingId(l.id); setEditName(l.name); setOpenMenuId(null); }}><Pencil size={15} /> {t('rename')}</button>
+                        <button role="menuitem" onClick={() => { duplicateList(l.id); setOpenMenuId(null); }}><Copy size={15} /> {t('duplicate')}</button>
+                        <button role="menuitem" className="list-manager__delete" onClick={() => { deleteList(l.id); setOpenMenuId(null); }} disabled={!canDelete} title={t(lists.length <= 1 ? 'keepOneList' : !canDelete ? 'ownerDeleteOnly' : 'deleteListTitle')}><Trash2 size={15} /> {t('delete')}</button>
+                      </div>}
                     </div>
                   </>
                 )}
@@ -170,38 +157,37 @@ export function ListManager({ onClose }: ListManagerProps) {
             className="field"
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
-            placeholder="New list name (optional)"
+            placeholder={t('newListName')}
             onKeyDown={(e) => e.key === 'Enter' && create()}
-            aria-label="New list name"
+            aria-label={t('newListNameAria')}
           />
           <button className="btn-primary" onClick={create}>
-            <Plus size={16} /> New
+            <Plus size={16} /> {t('new')}
           </button>
         </div>
+        <button className="btn-ghost list-manager__import" onClick={onImport}><FileUp size={16} /> {t('importPdf')}</button>
 
         {/* Store tag for the active list */}
         {activeList && (
           <div className="list-manager__store">
             <label className="composer__label">
-              <StoreIcon size={13} /> Store for “{activeList.name}” (optional)
+              <StoreIcon size={13} /> {t('storeFor', { name: activeList.name })}
             </label>
             <div className="list-manager__store-row">
               <input
                 className="field"
                 value={storeDraft}
                 onChange={(e) => setStoreDraft(e.target.value)}
-                placeholder="e.g. Costco, Whole Foods"
+                placeholder={t('storeExample')}
                 onKeyDown={(e) => e.key === 'Enter' && commitStore()}
-                aria-label="Store name"
+                aria-label={t('storeName')}
               />
               <button className="btn-ghost" onClick={commitStore}>
-                <Check size={15} /> Save
+                <Check size={15} /> {t('save')}
               </button>
             </div>
           </div>
         )}
-      </div>
-    </div>,
-    document.body,
+    </Dialog>
   );
 }

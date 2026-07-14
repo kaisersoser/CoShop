@@ -1,8 +1,8 @@
-# UX Psychology Best Practices
+# UX Psychology Best Practices — Historical, Non-Normative
 
-A checklist of six psychology-driven design principles that CoShop — and any future app we
-build — should follow. Each principle includes the underlying research, a general rule, and
-concrete ways to apply it in CoShop.
+**Status: historical input; non-normative until UX-01 rewrites this guide.** Use
+`docs/ux-psychology-review.md` and `docs/phase-1-plan.md` for current ethical requirements.
+This document is retained to preserve the original reasoning and findings that must be corrected.
 
 > **Core insight:** Users don't make purely logical decisions. Defaults read as
 > recommendations, the first number sets the anchor, a gift creates a debt, building something

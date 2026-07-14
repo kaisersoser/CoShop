@@ -1,456 +1,320 @@
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
-import { resolveItem, categoryForCatalogId } from '../lib/categorize';
-import { OTHER_CATEGORY_ID } from '../data/categories';
+import { createJSONStorage, persist } from 'zustand/middleware';
+import { categoryForCatalogId, resolveItem } from '../lib/categorize';
+import { CATEGORIES, OTHER_CATEGORY_ID } from '../data/categories';
+import { clearLegacyLocalState, indexedDbStorage, legacyLocalState } from '../lib/storage';
+import { saveImage } from '../lib/media';
+import { defaultListName, normalizeLanguage, REGION_DEFAULTS } from '../data/preferences';
 
-/* ============================================================================
-   CoShop — Zustand Global Store
-   ----------------------------------------------------------------------------
-   Multi-list, catalog-driven shopping state. Persisted to localStorage so the
-   app works fully offline and rehydrates on next launch.
-
-   Model (Phase 1):
-     - Multiple named, reusable lists.
-     - Items are grouped by product `category` (derived from the catalog).
-     - Optional store/location, tagged at the LIST level (item-level storeIds
-       are modeled for the future two-level view but have no UI yet).
-     - `price` is optional.
-   ========================================================================== */
-
-/** A single line item on a shopping list. */
 export interface ShoppingItem {
   id: string;
   name: string;
-  /** Catalog product id when the item matched a known product. */
   catalogId?: string;
-  /** Category id (see data/categories.ts); `other` when unmatched. */
   category: string;
-  /** Optional unit price in the user's currency. */
   price?: number;
   quantity: number;
   isPurchased: boolean;
-  /** Modeled for the two-level (store→category) north star; no UI in P1. */
   storeIds?: string[];
-  /** Optional base64-encoded photo for brand/reference. */
+  photoRef?: string;
+  /** Read only during the v2 migration, then moved into the media store on edit. */
   photoBase64?: string;
-  createdAt: number;
-}
-
-/** A named, reusable shopping list. */
-export interface ShoppingList {
-  id: string;
-  name: string;
-  /** Optional budget used by the cost calculator. */
-  budget?: number;
-  /** Optional list-level store/location tag. */
-  storeId?: string;
   createdAt: number;
   updatedAt: number;
 }
 
-/** An optional shopping location a list (and later items) can be tagged with. */
-export interface Store {
+export interface ShoppingList {
   id: string;
   name: string;
-  address?: string;
+  budget?: number;
+  currency: string;
+  storeId?: string;
+  createdAt: number;
+  updatedAt: number;
+  /** Remote authorization metadata; absent for guest-only lists. */
+  remoteHouseholdId?: string;
+  accessRole?: 'owner' | 'editor' | 'viewer';
 }
 
-/** Structured input accepted by addItem. Category/ catalogId are resolved from
- *  `name` when omitted, so callers can pass either raw text or a known match. */
+export interface Store { id: string; name: string; address?: string; remoteHouseholdId?: string; }
+export interface CustomCategory { id: string; name: string; order: number; createdAt: number; updatedAt: number; deletedAt?: number; }
+export interface UserPreferences { region: string; language: string; defaultCurrency: string; }
 export interface AddItemInput {
   name: string;
   catalogId?: string;
   category?: string;
   price?: number;
   quantity?: number;
-  photoBase64?: string;
+  photoRef?: string;
   storeIds?: string[];
 }
+export interface ImportListInput {
+  name: string;
+  currency: string;
+  storeName?: string;
+  items: AddItemInput[];
+}
 
-/** Shape of the persisted store. */
-interface ShopState {
+export interface TrashEntry {
+  id: string;
+  kind: 'item' | 'items' | 'list' | 'category';
+  label: string;
+  list?: ShoppingList;
+  listId: string;
+  items: ShoppingItem[];
+  category?: CustomCategory;
+  customCategories?: CustomCategory[];
+  affectedItemIds?: string[];
+  deletedAt: number;
+}
+
+export interface ShopState {
   lists: ShoppingList[];
   itemsByList: Record<string, ShoppingItem[]>;
   stores: Store[];
+  trash: TrashEntry[];
+  categoryPreferences: Record<string, string>;
+  customCategoriesByList: Record<string, CustomCategory[]>;
   activeListId: string;
   onboardingSeen: boolean;
+  hydrated: boolean;
+  preferences: UserPreferences;
 
-  // ---- List actions ----
   createList: (name?: string) => string;
   renameList: (id: string, name: string) => void;
   duplicateList: (id: string) => string;
   deleteList: (id: string) => void;
   setActiveList: (id: string) => void;
   setListBudget: (id: string, budget: number | undefined) => void;
-  /** Tag a list with an existing store, a new store (by name), or clear it. */
+  setListCurrency: (id: string, currency: string) => void;
   setListStore: (id: string, store: { name: string; address?: string } | null) => void;
-
-  // ---- Item actions (operate on the active list) ----
   addItem: (input: AddItemInput) => void;
+  importList: (input: ImportListInput) => string;
   toggleItemStatus: (id: string) => void;
   updateItem: (id: string, patch: Partial<Omit<ShoppingItem, 'id' | 'createdAt'>>) => void;
   deleteItem: (id: string) => void;
   setItemCategory: (id: string, category: string) => void;
+  createCustomCategory: (name: string) => string | undefined;
+  renameCustomCategory: (id: string, name: string) => boolean;
+  moveCustomCategory: (id: string, direction: -1 | 1) => void;
+  deleteCustomCategory: (id: string) => void;
   clearPurchased: () => void;
-
-  // ---- Misc ----
+  restoreTrash: (id?: string) => void;
+  dismissTrash: (id: string) => void;
   dismissOnboarding: () => void;
+  updatePreferences: (patch: Partial<UserPreferences>) => void;
+  replaceFromCloud: (data: Pick<ShopState, 'lists' | 'itemsByList' | 'stores' | 'customCategoriesByList'>) => void;
 }
 
-/** Small helper to mint collision-resistant ids without external deps. */
-const uid = (): string =>
-  `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
-
-/** A friendly default list label, e.g. "Week of Jun 22". */
-const defaultListName = (): string => {
-  const d = new Date();
-  return `Week of ${d.toLocaleString('en-US', { month: 'short', day: 'numeric' })}`;
+const uid = (): string => crypto.randomUUID();
+const normalize = (value: string) => value.trim().toLocaleLowerCase();
+const initialPreferences = (): UserPreferences => {
+  let region = 'US';
+  let language = 'en';
+  try {
+    const browserLocale = new Intl.Locale(navigator.language);
+    region = browserLocale.region ?? region;
+    language = normalizeLanguage(browserLocale.language);
+  } catch { /* use safe default */ }
+  const supportedRegion = REGION_DEFAULTS[region];
+  return { region, language: supportedRegion?.language ?? language, defaultCurrency: supportedRegion?.currency ?? 'USD' };
 };
 
-/** Build a fully-formed item from structured input, resolving the catalog. */
-const buildItem = (input: AddItemInput): ShoppingItem => {
+const initialState = () => {
+  const id = uid();
+  const now = Date.now();
+  const preferences = initialPreferences();
+  return {
+    lists: [{ id, name: defaultListName(preferences.language, preferences.region), currency: preferences.defaultCurrency, createdAt: now, updatedAt: now }],
+    itemsByList: { [id]: [] },
+    stores: [] as Store[],
+    trash: [] as TrashEntry[],
+    categoryPreferences: {} as Record<string, string>,
+    customCategoriesByList: { [id]: [] } as Record<string, CustomCategory[]>,
+    activeListId: id,
+    onboardingSeen: false,
+    hydrated: false,
+    preferences,
+  };
+};
+
+const buildItem = (input: AddItemInput, preferences: Record<string, string>, customCategories: CustomCategory[] = []): ShoppingItem => {
   let { name, catalogId, category } = input;
   if (!category) {
-    if (catalogId) {
-      category = categoryForCatalogId(catalogId);
-    } else {
+    const preferred = preferences[normalize(name)];
+    category = preferred && (CATEGORIES.some((entry) => entry.id === preferred) || customCategories.some((entry) => entry.id === preferred && !entry.deletedAt)) ? preferred : undefined;
+    if (!category && catalogId) category = categoryForCatalogId(catalogId);
+    if (!category) {
       const resolved = resolveItem(name);
-      name = resolved.name;
+      // Preserve exactly what the user typed; catalog matching only supplies metadata.
       catalogId = resolved.catalogId;
       category = resolved.category;
     }
   }
+  const now = Date.now();
   return {
-    id: uid(),
-    name: name.trim(),
-    catalogId,
-    category: category ?? OTHER_CATEGORY_ID,
-    price: input.price,
-    quantity: Math.max(1, input.quantity ?? 1),
-    isPurchased: false,
-    storeIds: input.storeIds,
-    photoBase64: input.photoBase64,
-    createdAt: Date.now(),
+    id: uid(), name: name.trim(), catalogId, category: category ?? OTHER_CATEGORY_ID,
+    price: input.price, quantity: Math.max(1, input.quantity ?? 1), isPurchased: false,
+    storeIds: input.storeIds, photoRef: input.photoRef, createdAt: now, updatedAt: now,
   };
 };
+const touch = (lists: ShoppingList[], id: string) =>
+  lists.map((list) => list.id === id ? { ...list, updatedAt: Date.now() } : list);
 
-/** Initial seed items so the prototype looks alive on first launch. */
-const seedItems = (): ShoppingItem[] => {
-  const now = Date.now();
-  const seeds: AddItemInput[] = [
-    { name: 'Oat Milk', price: 4.99, quantity: 2 },
-    { name: 'Sourdough Loaf', price: 6.5, quantity: 1 },
-    { name: 'Organic Avocados', price: 0.99, quantity: 4 },
-    { name: 'Cold Brew Concentrate', price: 11.99, quantity: 1 },
-    { name: 'Bananas', price: 0.59, quantity: 6 },
-  ];
-  return seeds.map((s, i) => ({ ...buildItem(s), createdAt: now + i }));
-};
-
-/** Fresh initial state for a first-ever launch. */
-const initialState = () => {
-  const listId = uid();
-  const now = Date.now();
-  const list: ShoppingList = {
-    id: listId,
-    name: defaultListName(),
-    budget: 120,
-    createdAt: now,
-    updatedAt: now,
-  };
-  return {
-    lists: [list],
-    itemsByList: { [listId]: seedItems() },
-    stores: [] as Store[],
-    activeListId: listId,
-    onboardingSeen: false,
-  };
-};
-
-/** Touch a list's updatedAt timestamp. */
-const touch = (lists: ShoppingList[], id: string): ShoppingList[] =>
-  lists.map((l) => (l.id === id ? { ...l, updatedAt: Date.now() } : l));
-
-export const useShopStore = create<ShopState>()(
-  persist(
-    (set, get) => ({
-      ...initialState(),
-
-      // ---- List actions ----
-      createList: (name) => {
-        const id = uid();
-        const now = Date.now();
-        set((state) => ({
-          lists: [
-            ...state.lists,
-            { id, name: name?.trim() || defaultListName(), createdAt: now, updatedAt: now },
-          ],
-          itemsByList: { ...state.itemsByList, [id]: [] },
-          activeListId: id,
-        }));
-        return id;
-      },
-
-      renameList: (id, name) =>
-        set((state) => ({
-          lists: state.lists.map((l) =>
-            l.id === id ? { ...l, name: name.trim() || l.name, updatedAt: Date.now() } : l,
-          ),
-        })),
-
-      duplicateList: (id) => {
-        const state = get();
-        const src = state.lists.find((l) => l.id === id);
-        if (!src) return id;
-        const newId = uid();
-        const now = Date.now();
-        const copyItems = (state.itemsByList[id] ?? []).map((it) => ({
-          ...it,
-          id: uid(),
-          isPurchased: false,
-          createdAt: Date.now(),
-        }));
-        set({
-          lists: [
-            ...state.lists,
-            { ...src, id: newId, name: `${src.name} (copy)`, createdAt: now, updatedAt: now },
-          ],
-          itemsByList: { ...state.itemsByList, [newId]: copyItems },
-          activeListId: newId,
-        });
-        return newId;
-      },
-
-      deleteList: (id) =>
-        set((state) => {
-          if (state.lists.length <= 1) return state; // never delete the last list
-          const lists = state.lists.filter((l) => l.id !== id);
-          const itemsByList = { ...state.itemsByList };
-          delete itemsByList[id];
-          const activeListId =
-            state.activeListId === id ? lists[0].id : state.activeListId;
-          return { lists, itemsByList, activeListId };
-        }),
-
-      setActiveList: (id) =>
-        set((state) =>
-          state.lists.some((l) => l.id === id) ? { activeListId: id } : state,
-        ),
-
-      setListBudget: (id, budget) =>
-        set((state) => ({
-          lists: state.lists.map((l) =>
-            l.id === id ? { ...l, budget, updatedAt: Date.now() } : l,
-          ),
-        })),
-
-      setListStore: (id, store) =>
-        set((state) => {
-          if (store === null) {
-            return {
-              lists: state.lists.map((l) =>
-                l.id === id ? { ...l, storeId: undefined, updatedAt: Date.now() } : l,
-              ),
-            };
-          }
-          // Reuse an existing store with the same name, else create one.
-          const existing = state.stores.find(
-            (s) => s.name.toLowerCase() === store.name.trim().toLowerCase(),
-          );
-          const storeId = existing?.id ?? uid();
-          const stores = existing
-            ? state.stores
-            : [...state.stores, { id: storeId, name: store.name.trim(), address: store.address }];
-          return {
-            stores,
-            lists: state.lists.map((l) =>
-              l.id === id ? { ...l, storeId, updatedAt: Date.now() } : l,
-            ),
-          };
-        }),
-
-      // ---- Item actions ----
-      addItem: (input) =>
-        set((state) => {
-          const id = state.activeListId;
-          const current = state.itemsByList[id] ?? [];
-          return {
-            itemsByList: { ...state.itemsByList, [id]: [buildItem(input), ...current] },
-            lists: touch(state.lists, id),
-          };
-        }),
-
-      toggleItemStatus: (itemId) =>
-        set((state) => {
-          const id = state.activeListId;
-          const current = state.itemsByList[id] ?? [];
-          return {
-            itemsByList: {
-              ...state.itemsByList,
-              [id]: current.map((it) =>
-                it.id === itemId ? { ...it, isPurchased: !it.isPurchased } : it,
-              ),
-            },
-          };
-        }),
-
-      updateItem: (itemId, patch) =>
-        set((state) => {
-          const id = state.activeListId;
-          const current = state.itemsByList[id] ?? [];
-          return {
-            itemsByList: {
-              ...state.itemsByList,
-              [id]: current.map((it) => (it.id === itemId ? { ...it, ...patch } : it)),
-            },
-            lists: touch(state.lists, id),
-          };
-        }),
-
-      deleteItem: (itemId) =>
-        set((state) => {
-          const id = state.activeListId;
-          const current = state.itemsByList[id] ?? [];
-          return {
-            itemsByList: { ...state.itemsByList, [id]: current.filter((it) => it.id !== itemId) },
-            lists: touch(state.lists, id),
-          };
-        }),
-
-      setItemCategory: (itemId, category) =>
-        set((state) => {
-          const id = state.activeListId;
-          const current = state.itemsByList[id] ?? [];
-          return {
-            itemsByList: {
-              ...state.itemsByList,
-              [id]: current.map((it) => (it.id === itemId ? { ...it, category } : it)),
-            },
-          };
-        }),
-
-      clearPurchased: () =>
-        set((state) => {
-          const id = state.activeListId;
-          const current = state.itemsByList[id] ?? [];
-          return {
-            itemsByList: { ...state.itemsByList, [id]: current.filter((it) => !it.isPurchased) },
-          };
-        }),
-
-      dismissOnboarding: () => set({ onboardingSeen: true }),
-    }),
-    {
-      name: 'coshop-store-v1', // storage key kept stable so v1 data migrates in place
-      version: 2,
-      storage: createJSONStorage(() => localStorage),
-      partialize: (state) => ({
-        lists: state.lists,
-        itemsByList: state.itemsByList,
-        stores: state.stores,
-        activeListId: state.activeListId,
-        onboardingSeen: state.onboardingSeen,
-      }),
-      migrate: (persisted, version) => migrateState(persisted, version),
-    },
-  ),
-);
-
-/* ----------------------------------------------------------------------------
-   Migration — fold the old single-list v1 shape into the multi-list v2 shape.
-   -------------------------------------------------------------------------- */
-
-interface LegacyItem {
-  id: string;
-  name: string;
-  store?: string;
-  price?: number;
-  quantity?: number;
-  isPurchased?: boolean;
-  photoBase64?: string;
-  createdAt?: number;
-}
-interface LegacyState {
-  list?: { id?: string; weekName?: string; budget?: number };
-  items?: LegacyItem[];
-}
-
-function migrateState(persisted: unknown, version: number) {
-  // Already current (or newer) — pass through.
-  if (version >= 2 || !persisted || typeof persisted !== 'object') {
-    return persisted as Partial<ShopState>;
-  }
-
-  const legacy = persisted as LegacyState;
-  const listId = legacy.list?.id ?? uid();
-  const now = Date.now();
-
-  const items: ShoppingItem[] = (legacy.items ?? []).map((it, i) => {
-    const resolved = resolveItem(it.name ?? '');
+export const useShopStore = create<ShopState>()(persist((set, get) => ({
+  ...initialState(),
+  createList: (name) => {
+    const id = uid(); const now = Date.now();
+    set((s) => ({ lists: [...s.lists, { id, name: name?.trim() || defaultListName(s.preferences.language, s.preferences.region), currency: s.preferences.defaultCurrency, createdAt: now, updatedAt: now }], itemsByList: { ...s.itemsByList, [id]: [] }, customCategoriesByList: { ...s.customCategoriesByList, [id]: [] }, activeListId: id }));
+    return id;
+  },
+  renameList: (id, name) => set((s) => ({ lists: s.lists.map((l) => l.id === id && l.accessRole !== 'viewer' ? { ...l, name: name.trim() || l.name, updatedAt: Date.now() } : l) })),
+  duplicateList: (id) => {
+    const s = get(); const source = s.lists.find((l) => l.id === id); if (!source) return id;
+    const newId = uid(); const now = Date.now();
+    const categoryIds = new Map<string, string>();
+    const customCategories = (s.customCategoriesByList[id] ?? []).filter((category) => !category.deletedAt).map((category) => { const categoryId = uid(); categoryIds.set(category.id, categoryId); return { ...category, id: categoryId, createdAt: now, updatedAt: now }; });
+    const items = (s.itemsByList[id] ?? []).map((item) => ({ ...item, id: uid(), category: categoryIds.get(item.category) ?? item.category, isPurchased: false, createdAt: now, updatedAt: now }));
+    const { remoteHouseholdId: _remoteHouseholdId, accessRole: _accessRole, ...localSource } = source;
+    set({ lists: [...s.lists, { ...localSource, id: newId, name: `${source.name} (copy)`, createdAt: now, updatedAt: now }], itemsByList: { ...s.itemsByList, [newId]: items }, customCategoriesByList: { ...s.customCategoriesByList, [newId]: customCategories }, activeListId: newId });
+    return newId;
+  },
+  deleteList: (id) => set((s) => {
+    if (s.lists.length <= 1) return s;
+    const list = s.lists.find((l) => l.id === id); if (!list) return s;
+    if (list.remoteHouseholdId && list.accessRole !== 'owner') return s;
+    const entry: TrashEntry = { id: uid(), kind: 'list', label: list.name, list, listId: id, items: s.itemsByList[id] ?? [], customCategories: s.customCategoriesByList[id] ?? [], deletedAt: Date.now() };
+    const lists = s.lists.filter((l) => l.id !== id); const itemsByList = { ...s.itemsByList }; delete itemsByList[id];
+    const customCategoriesByList = { ...s.customCategoriesByList }; delete customCategoriesByList[id];
+    return { lists, itemsByList, customCategoriesByList, trash: [entry, ...s.trash].slice(0, 25), activeListId: s.activeListId === id ? lists[0].id : s.activeListId };
+  }),
+  setActiveList: (id) => set((s) => s.lists.some((l) => l.id === id) ? { activeListId: id } : s),
+  setListBudget: (id, budget) => set((s) => ({ lists: s.lists.map((l) => l.id === id && l.accessRole !== 'viewer' ? { ...l, budget, updatedAt: Date.now() } : l) })),
+  setListCurrency: (id, currency) => set((s) => ({ lists: s.lists.map((l) => l.id === id && l.accessRole !== 'viewer' ? { ...l, currency, updatedAt: Date.now() } : l) })),
+  setListStore: (id, input) => set((s) => {
+    const target = s.lists.find((list) => list.id === id);
+    if (target?.remoteHouseholdId && target.accessRole !== 'owner') return s;
+    if (!input) return { lists: s.lists.map((l) => l.id === id ? { ...l, storeId: undefined, updatedAt: Date.now() } : l) };
+    const existing = s.stores.find((store) => normalize(store.name) === normalize(input.name)); const storeId = existing?.id ?? uid();
+    return { stores: existing ? s.stores : [...s.stores, { id: storeId, name: input.name.trim(), address: input.address }], lists: s.lists.map((l) => l.id === id ? { ...l, storeId, updatedAt: Date.now() } : l) };
+  }),
+  addItem: (input) => set((s) => { const id = s.activeListId; if (s.lists.find((list) => list.id === id)?.accessRole === 'viewer') return s; return { itemsByList: { ...s.itemsByList, [id]: [buildItem(input, s.categoryPreferences, s.customCategoriesByList[id]), ...(s.itemsByList[id] ?? [])] }, lists: touch(s.lists, id), onboardingSeen: true }; }),
+  importList: (input) => {
+    const id = uid(); const now = Date.now();
+    set((s) => {
+      const storeName = input.storeName?.trim();
+      const existingStore = storeName ? s.stores.find((store) => normalize(store.name) === normalize(storeName)) : undefined;
+      const storeId = storeName ? existingStore?.id ?? uid() : undefined;
+      const stores = storeName && !existingStore ? [...s.stores, { id: storeId!, name: storeName }] : s.stores;
+      return {
+        lists: [...s.lists, { id, name: input.name.trim() || defaultListName(s.preferences.language, s.preferences.region), currency: input.currency, storeId, createdAt: now, updatedAt: now }],
+        itemsByList: { ...s.itemsByList, [id]: input.items.map((item) => buildItem(item, s.categoryPreferences)) },
+        stores, customCategoriesByList: { ...s.customCategoriesByList, [id]: [] }, activeListId: id, onboardingSeen: true,
+      };
+    });
+    return id;
+  },
+  toggleItemStatus: (itemId) => set((s) => { const id = s.activeListId; if (s.lists.find((list) => list.id === id)?.accessRole === 'viewer') return s; return { itemsByList: { ...s.itemsByList, [id]: (s.itemsByList[id] ?? []).map((it) => it.id === itemId ? { ...it, isPurchased: !it.isPurchased, updatedAt: Date.now() } : it) }, lists: touch(s.lists, id) }; }),
+  updateItem: (itemId, patch) => set((s) => { const id = s.activeListId; if (s.lists.find((list) => list.id === id)?.accessRole === 'viewer') return s; return { itemsByList: { ...s.itemsByList, [id]: (s.itemsByList[id] ?? []).map((it) => it.id === itemId ? { ...it, ...patch, updatedAt: Date.now() } : it) }, lists: touch(s.lists, id) }; }),
+  deleteItem: (itemId) => set((s) => {
+    const id = s.activeListId; const item = (s.itemsByList[id] ?? []).find((it) => it.id === itemId); if (!item) return s;
+    if (s.lists.find((list) => list.id === id)?.accessRole === 'viewer') return s;
+    const entry: TrashEntry = { id: uid(), kind: 'item', label: item.name, listId: id, items: [item], deletedAt: Date.now() };
+    return { itemsByList: { ...s.itemsByList, [id]: (s.itemsByList[id] ?? []).filter((it) => it.id !== itemId) }, lists: touch(s.lists, id), trash: [entry, ...s.trash].slice(0, 25) };
+  }),
+  setItemCategory: (itemId, category) => set((s) => { const id = s.activeListId; if (s.lists.find((list) => list.id === id)?.accessRole === 'viewer') return s; const item = (s.itemsByList[id] ?? []).find((it) => it.id === itemId); return { itemsByList: { ...s.itemsByList, [id]: (s.itemsByList[id] ?? []).map((it) => it.id === itemId ? { ...it, category, updatedAt: Date.now() } : it) }, categoryPreferences: item ? { ...s.categoryPreferences, [normalize(item.name)]: category } : s.categoryPreferences }; }),
+  createCustomCategory: (name) => {
+    const state = get(); const listId = state.activeListId; const clean = name.trim().replace(/\s+/g, ' ').slice(0, 40);
+    if (!clean || state.lists.find((list) => list.id === listId)?.accessRole === 'viewer') return undefined;
+    const existing = (state.customCategoriesByList[listId] ?? []).find((category) => !category.deletedAt && normalize(category.name) === normalize(clean));
+    if (existing) return existing.id;
+    const now = Date.now(); const id = uid();
+    const order = Math.max(-1, ...(state.customCategoriesByList[listId] ?? []).filter((category) => !category.deletedAt).map((category) => category.order)) + 1;
+    set({ customCategoriesByList: { ...state.customCategoriesByList, [listId]: [...(state.customCategoriesByList[listId] ?? []), { id, name: clean, order, createdAt: now, updatedAt: now }] }, lists: touch(state.lists, listId) });
+    return id;
+  },
+  renameCustomCategory: (categoryId, name) => {
+    const state = get(); const listId = state.activeListId; const clean = name.trim().replace(/\s+/g, ' ').slice(0, 40);
+    if (!clean || state.lists.find((list) => list.id === listId)?.accessRole === 'viewer') return false;
+    if ((state.customCategoriesByList[listId] ?? []).some((category) => category.id !== categoryId && !category.deletedAt && normalize(category.name) === normalize(clean))) return false;
+    const now = Date.now();
+    set({ customCategoriesByList: { ...state.customCategoriesByList, [listId]: (state.customCategoriesByList[listId] ?? []).map((category) => category.id === categoryId && !category.deletedAt ? { ...category, name: clean, updatedAt: now } : category) }, lists: touch(state.lists, listId) });
+    return true;
+  },
+  moveCustomCategory: (categoryId, direction) => set((s) => {
+    const listId = s.activeListId; if (s.lists.find((list) => list.id === listId)?.accessRole === 'viewer') return s;
+    const active = (s.customCategoriesByList[listId] ?? []).filter((category) => !category.deletedAt).sort((a, b) => a.order - b.order);
+    const index = active.findIndex((category) => category.id === categoryId); const swap = index + direction;
+    if (index < 0 || swap < 0 || swap >= active.length) return s;
+    const now = Date.now(); const orders = new Map([[active[index].id, active[swap].order], [active[swap].id, active[index].order]]);
+    return { customCategoriesByList: { ...s.customCategoriesByList, [listId]: (s.customCategoriesByList[listId] ?? []).map((category) => orders.has(category.id) ? { ...category, order: orders.get(category.id)!, updatedAt: now } : category) }, lists: touch(s.lists, listId) };
+  }),
+  deleteCustomCategory: (categoryId) => set((s) => {
+    const listId = s.activeListId; if (s.lists.find((list) => list.id === listId)?.accessRole === 'viewer') return s;
+    const category = (s.customCategoriesByList[listId] ?? []).find((entry) => entry.id === categoryId && !entry.deletedAt); if (!category) return s;
+    const deletedAt = Date.now(); const affected = (s.itemsByList[listId] ?? []).filter((item) => item.category === categoryId);
+    const entry: TrashEntry = { id: uid(), kind: 'category', label: category.name, listId, items: [], category, affectedItemIds: affected.map((item) => item.id), deletedAt };
     return {
-      id: it.id ?? uid(),
-      name: it.name ?? resolved.name,
-      catalogId: resolved.catalogId,
-      category: resolved.category,
-      price: typeof it.price === 'number' ? it.price : undefined,
-      quantity: Math.max(1, it.quantity ?? 1),
-      isPurchased: Boolean(it.isPurchased),
-      photoBase64: it.photoBase64,
-      createdAt: it.createdAt ?? now + i,
+      customCategoriesByList: { ...s.customCategoriesByList, [listId]: (s.customCategoriesByList[listId] ?? []).map((item) => item.id === categoryId ? { ...item, deletedAt, updatedAt: deletedAt } : item) },
+      itemsByList: { ...s.itemsByList, [listId]: (s.itemsByList[listId] ?? []).map((item) => item.category === categoryId ? { ...item, category: OTHER_CATEGORY_ID, updatedAt: deletedAt } : item) },
+      categoryPreferences: Object.fromEntries(Object.entries(s.categoryPreferences).map(([key, value]) => [key, value === categoryId ? OTHER_CATEGORY_ID : value])),
+      lists: touch(s.lists, listId), trash: [entry, ...s.trash].slice(0, 25),
     };
-  });
+  }),
+  clearPurchased: () => set((s) => {
+    const id = s.activeListId; const removed = (s.itemsByList[id] ?? []).filter((it) => it.isPurchased); if (!removed.length) return s;
+    if (s.lists.find((list) => list.id === id)?.accessRole === 'viewer') return s;
+    const entry: TrashEntry = { id: uid(), kind: 'items', label: `${removed.length} purchased item${removed.length === 1 ? '' : 's'}`, listId: id, items: removed, deletedAt: Date.now() };
+    return { itemsByList: { ...s.itemsByList, [id]: (s.itemsByList[id] ?? []).filter((it) => !it.isPurchased) }, lists: touch(s.lists, id), trash: [entry, ...s.trash].slice(0, 25) };
+  }),
+  restoreTrash: (trashId) => set((s) => {
+    const entry = trashId ? s.trash.find((t) => t.id === trashId) : s.trash[0]; if (!entry) return s;
+    if (entry.kind === 'list' && entry.list) return { lists: [...s.lists, entry.list], itemsByList: { ...s.itemsByList, [entry.listId]: entry.items }, customCategoriesByList: { ...s.customCategoriesByList, [entry.listId]: entry.customCategories ?? [] }, trash: s.trash.filter((t) => t.id !== entry.id), activeListId: entry.listId };
+    if (entry.kind === 'category' && entry.category) {
+      const now = Date.now(); const affected = new Set(entry.affectedItemIds ?? []);
+      const items = (s.itemsByList[entry.listId] ?? []).map((item) => affected.has(item.id) && item.category === OTHER_CATEGORY_ID ? { ...item, category: entry.category!.id, updatedAt: now } : item);
+      return { customCategoriesByList: { ...s.customCategoriesByList, [entry.listId]: (s.customCategoriesByList[entry.listId] ?? []).map((category) => category.id === entry.category!.id ? { ...entry.category!, updatedAt: now, deletedAt: undefined } : category) }, itemsByList: { ...s.itemsByList, [entry.listId]: items }, categoryPreferences: { ...s.categoryPreferences, ...Object.fromEntries(items.filter((item) => affected.has(item.id)).map((item) => [normalize(item.name), entry.category!.id])) }, trash: s.trash.filter((t) => t.id !== entry.id) };
+    }
+    return { itemsByList: { ...s.itemsByList, [entry.listId]: [...entry.items, ...(s.itemsByList[entry.listId] ?? [])] }, trash: s.trash.filter((t) => t.id !== entry.id) };
+  }),
+  dismissTrash: (id) => set((s) => ({ trash: s.trash.filter((t) => t.id !== id) })),
+  dismissOnboarding: () => set({ onboardingSeen: true }),
+  updatePreferences: (patch) => set((s) => ({ preferences: { ...s.preferences, ...patch } })),
+  replaceFromCloud: (data) => set((s) => ({ ...data, activeListId: data.lists.some((l) => l.id === s.activeListId) ? s.activeListId : data.lists[0]?.id ?? s.activeListId })),
+}), {
+  name: 'coshop-store-v3', version: 4, storage: createJSONStorage(() => indexedDbStorage),
+  partialize: (s) => ({ lists: s.lists, itemsByList: s.itemsByList, stores: s.stores, trash: s.trash, categoryPreferences: s.categoryPreferences, customCategoriesByList: s.customCategoriesByList, activeListId: s.activeListId, onboardingSeen: s.onboardingSeen, preferences: s.preferences }),
+  onRehydrateStorage: () => () => { queueMicrotask(() => useShopStore.setState({ hydrated: true })); },
+  migrate: (persisted) => { const state = persisted as Partial<ShopState>; const base = initialState(); return { ...base, ...state, customCategoriesByList: state.customCategoriesByList ?? Object.fromEntries((state.lists ?? base.lists).map((list) => [list.id, []])), hydrated: true }; },
+}));
 
-  // If every legacy item shared one store, lift it to a list-level store tag.
-  const legacyStores = [...new Set((legacy.items ?? []).map((it) => it.store).filter(Boolean))];
-  const stores: Store[] = [];
-  let storeId: string | undefined;
-  if (legacyStores.length === 1) {
-    storeId = uid();
-    stores.push({ id: storeId, name: legacyStores[0] as string });
-  }
-
-  const list: ShoppingList = {
-    id: listId,
-    name: legacy.list?.weekName ?? defaultListName(),
-    budget: legacy.list?.budget ?? 120,
-    storeId,
-    createdAt: now,
-    updatedAt: now,
-  };
-
-  return {
-    lists: [list],
-    itemsByList: { [listId]: items },
-    stores,
-    activeListId: listId,
-    onboardingSeen: true, // returning users skip onboarding
-  } as Partial<ShopState>;
+// One-time localStorage -> IndexedDB migration. Zustand v1/v2 payloads retain their IDs.
+if (typeof window !== 'undefined' && legacyLocalState() && !localStorage.getItem('coshop-idb-migrated')) {
+  try {
+    const legacy = JSON.parse(legacyLocalState()!);
+    const state = legacy.state as Partial<ShopState> | undefined;
+    if (state?.lists?.length) {
+      const itemsByList = { ...(state.itemsByList ?? {}) };
+      void (async () => {
+        for (const [listId, items] of Object.entries(itemsByList)) {
+          itemsByList[listId] = await Promise.all(items.map(async (item) => {
+            const photoRef = item.photoBase64 ? await saveImage(item.photoBase64) : item.photoRef;
+            const { photoBase64: _legacyPhoto, ...clean } = item;
+            return { ...clean, photoRef, updatedAt: item.updatedAt ?? item.createdAt ?? Date.now() };
+          }));
+        }
+        const upgraded = { ...initialState(), ...state, itemsByList, lists: state.lists!.map((l) => ({ ...l, currency: l.currency ?? 'USD', updatedAt: l.updatedAt ?? l.createdAt ?? Date.now() })), hydrated: true };
+        await Promise.resolve(indexedDbStorage.setItem('coshop-store-v3', JSON.stringify({ state: upgraded, version: 3 })));
+        localStorage.setItem('coshop-idb-migrated', '1'); clearLegacyLocalState(); window.location.reload();
+      })();
+    }
+  } catch { /* Invalid legacy state is left untouched for manual recovery/export. */ }
 }
 
-/* ----------------------------------------------------------------------------
-   Selectors — operate on the ACTIVE list. Missing price counts as 0.
-   -------------------------------------------------------------------------- */
-
-/** Items belonging to the currently active list. */
-export const selectActiveItems = (s: ShopState): ShoppingItem[] =>
-  s.itemsByList[s.activeListId] ?? [];
-
-/** The currently active list object. */
-export const selectActiveList = (s: ShopState): ShoppingList | undefined =>
-  s.lists.find((l) => l.id === s.activeListId);
-
-/** The store tagged on the active list, if any. */
-export const selectActiveStore = (s: ShopState): Store | undefined => {
-  const list = selectActiveList(s);
-  return list?.storeId ? s.stores.find((st) => st.id === list.storeId) : undefined;
-};
-
-const lineCost = (it: ShoppingItem): number => (it.price ?? 0) * it.quantity;
-
-/** Sum of (price * quantity) where isPurchased === true (active list). */
-export const selectInCartTotal = (s: ShopState): number =>
-  selectActiveItems(s).reduce((sum, it) => (it.isPurchased ? sum + lineCost(it) : sum), 0);
-
-/** Sum of (price * quantity) across ALL items in the active list (the estimate). */
-export const selectEstimatedTotal = (s: ShopState): number =>
-  selectActiveItems(s).reduce((sum, it) => sum + lineCost(it), 0);
+export const selectActiveItems = (s: ShopState) => s.itemsByList[s.activeListId] ?? [];
+export const selectActiveList = (s: ShopState) => s.lists.find((l) => l.id === s.activeListId);
+export const selectActiveStore = (s: ShopState) => { const list = selectActiveList(s); return list?.storeId ? s.stores.find((store) => store.id === list.storeId) : undefined; };
+export const selectCanEditActive = (s: ShopState) => selectActiveList(s)?.accessRole !== 'viewer';
+const lineCost = (item: ShoppingItem) => typeof item.price === 'number' ? item.price * item.quantity : 0;
+export const selectInCartTotal = (s: ShopState) => selectActiveItems(s).reduce((sum, item) => item.isPurchased ? sum + lineCost(item) : sum, 0);
+export const selectEstimatedTotal = (s: ShopState) => selectActiveItems(s).reduce((sum, item) => sum + lineCost(item), 0);
+export const selectPriceCoverage = (s: ShopState) => { const items = selectActiveItems(s); const priced = items.filter((item) => typeof item.price === 'number'); return { priced: priced.length, total: items.length, missing: items.length - priced.length }; };

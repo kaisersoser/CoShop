@@ -2,6 +2,10 @@
 
 ## Document status
 
+Implementation evidence and remaining release gates are tracked in
+[`implementation-status.md`](implementation-status.md). The application is deployed as a production
+candidate; unchecked beta gates below remain binding and are not implied complete by deployment.
+
 - **Status:** Approved for implementation planning
 - **Supersedes:** The original Phase 1 foundation plan
 - **Current product state:** Phase 1 prototype foundation implemented
@@ -11,11 +15,21 @@
   Security behind provider-independent application interfaces
 - **Identity decision:** Anonymous local use remains fully functional. Account creation is offered
   only when a user requests sharing, backup, or multi-device access.
+- **UX workstream:** `docs/ux-psychology-review.md` is the normative evidence, target-flow,
+  ethics, and measurement specification for UX-01 through UX-15.
 
 This is the master implementation plan. It preserves the useful work completed in the original
 Phase 1 while reordering future work around durability, recovery, collaboration, accessibility,
 security, and operational readiness. Voice, OCR, GPS, recipes, and retailer intelligence remain
 important, but they do not precede a dependable shared-list core.
+
+### Document hierarchy
+
+- This document owns delivery order, architecture dependencies, and release gates.
+- `docs/ux-psychology-review.md` owns the detailed evidence, recommendations, target flows,
+  ethical guardrails, validation metrics, and non-recommendations for the UX workstream.
+- `docs/ux-psychology-best-practices.md` is historical input and is non-normative until UX-01
+  rewrites it. When guidance conflicts, the UX review and this master plan take precedence.
 
 ---
 
@@ -51,8 +65,11 @@ online, recover safely from mistakes, and never require an account before delive
 6. **Progressive disclosure.** Price, category, store, notes, and photos remain optional.
 7. **Accessible by default.** Keyboard, screen reader, zoom, reduced motion, contrast, and generous
    touch targets are release requirements.
-8. **Ethical engagement.** Use the rules in `docs/ux-psychology-best-practices.md`; do not create
-   artificial urgency, fake progress, or coercive signup prompts.
+8. **Ethical engagement.** Apply the release gate in `docs/ux-psychology-review.md`; do not create
+   artificial urgency, fake progress, disguised commitments, selective financial anchors, or
+   coercive signup and permission prompts.
+9. **Evidence before optimization.** Behavioral principles produce hypotheses, not guaranteed
+   outcomes. Instrument material changes, define a user-harm guardrail, and retain rollback paths.
 
 ---
 
@@ -80,8 +97,14 @@ The following prototype capabilities are implemented and should be preserved thr
   `coshop-store-v1` key with internal version 2.
 - Destructive actions have no undo, trash, or recovery.
 - Seed data conflicts with first-item onboarding.
+- First-run onboarding dismisses guidance instead of opening the first value action.
 - Currency and default list names are hardcoded for US English.
+- A fabricated $120 first-run budget anchors users without household, currency, or trip context.
+- Missing prices count as zero while totals appear complete.
+- Shopping exposes separate counts but no single real completion statement or finish path.
+- Current metadata promises collaboration before collaboration or backup exists.
 - Modals and autocomplete do not yet implement complete accessible focus/ARIA behavior.
+- The current psychology guide contains recommendations that conflict with the ethical release gate.
 - External Inter font requests weaken the offline guarantee.
 - No automated unit, component, end-to-end, migration, sync, or accessibility test suite exists.
 - Development tooling has known audit findings and several dependencies are major versions behind.
@@ -310,7 +333,26 @@ it cannot ship before all earlier gates pass.
 - Add global `:focus-visible` styling and 44×44 preferred primary touch targets.
 - Associate all labels and inputs; validate at 200% text zoom and narrow mobile widths.
 - Replace prototype seeds with an explicit `Load demo list` action in development/demo mode.
-- Preserve an empty first-run list and align onboarding with the actual state.
+- Preserve an empty first-run list, remove the unsupported default budget, and align onboarding
+  with the actual state (UX-06, UX-10).
+- Change onboarding's primary action from passive dismissal to opening a focused first-item flow;
+  keep a quiet dismiss/direct-use path (UX-05).
+- Prefill new-list names with a visible, editable, context-safe default and label the action
+  “Create list” rather than the ambiguous “New” (UX-09).
+- Temporarily remove collaborative/backup claims from public copy until Stage C provides them
+  (first half of UX-11).
+
+### A5. Ethical UX governance
+
+- Rewrite `docs/ux-psychology-best-practices.md` using UX-01 and the new ethics gate. Remove fake
+  progress, disguised commitments, confirm-shaming, arbitrary monetary anchors, and selective
+  comparison guidance; source or qualify empirical claims.
+- Make `docs/ux-psychology-review.md` review checklists part of feature acceptance templates.
+- Require each behavioral hypothesis to define the user job, evidence, expected outcome, negative
+  guardrail metric, disconfirming signal, and rollback path.
+- Add the explicit non-recommendations from the UX review to design and PR review checklists.
+- Record exceptions in an architecture/product decision record with accessibility, privacy, and
+  ethics approval; conversion goals alone cannot justify an exception.
 
 ### Stage A exit gate
 
@@ -319,6 +361,10 @@ it cannot ship before all earlier gates pass.
 - No high-severity production or build-tool audit findings remain without an approved exception.
 - Core flows have automated accessibility checks and pass manual keyboard navigation.
 - Existing Phase 1 behavior has regression coverage.
+- UX-01, UX-04, UX-05, UX-06, UX-09, UX-10, and the copy portion of UX-11 meet their acceptance
+  criteria in the UX review.
+- No shipped flow uses fake progress, disguised signup/payment/permission labels, confirm-shaming,
+  unsupported monetary defaults, or unavailable product claims.
 
 ## Stage B — Durable local-first foundation
 
@@ -359,18 +405,30 @@ it cannot ship before all earlier gates pass.
 
 - Add undo snackbars for item deletion, clear purchased, status changes where appropriate, and
   category corrections.
-- Require a concrete-stakes confirmation for deleting a populated list.
-- Soft-delete lists/items locally and expose a short-lived trash/recently-deleted view.
+- Require a neutral concrete-stakes confirmation for deleting a populated list; name the list,
+  item count, and recovery window without confirm-shaming (UX-02).
+- Soft-delete lists/items locally and expose a documented trash/recently-deleted retention window.
+- Ensure undo/restore preserves stable IDs, ordering, purchase state, prices, categories, and
+  attachment relationships.
 - Add JSON export/import with schema version, validation, preview, and collision handling.
 - Add a diagnostics screen showing storage use, last migration, app version, and recovery actions.
 
 ### B5. Locale-safe money and quantities
 
-- Add locale and currency settings with device-locale defaults.
+- Add locale and currency settings with device-locale defaults. English/United Kingdom/GBP,
+  French/France/EUR, German/Germany/EUR, and Spanish/Spain/EUR are implemented as the initial
+  production localization set. Every selectable region applies its ISO currency automatically;
+  language and currency remain independently editable.
 - Store money as integer minor units in new domain entities.
 - Convert legacy floats deterministically during migration.
 - Render using `Intl.NumberFormat`.
+- Import text-based retailer invoices locally, retain source identifiers and historical price basis,
+  and require editable review. AI category/translation enrichment sends only minimized product data,
+  uses a strict category schema, preserves deterministic quantities/prices/EANs, and remains optional.
 - Distinguish estimated and actual price and disclose incomplete estimates.
+- Show price coverage and unpriced-item count; label incomplete totals as known/partial rather than
+  silently treating missing prices as a complete zero-value estimate (UX-03).
+- Keep item-completion progress separate from budget/spend progress.
 - Introduce an optional unit field without requiring it in the UI.
 
 ### Stage B exit gate
@@ -380,6 +438,9 @@ it cannot ship before all earlier gates pass.
 - Photos no longer appear in localStorage or entity JSON.
 - Export/import round trips all supported guest data.
 - All durable writes are repository transactions; Zustand/localStorage is not the source of truth.
+- UX-02 and UX-03 meet their recovery and financial-comprehension acceptance criteria.
+- Composer drafts survive accidental close, backgrounding, and update interruption (durability
+  portion of UX-07).
 
 ## Stage C — Accounts, backup, and household collaboration
 
@@ -397,8 +458,13 @@ it cannot ship before all earlier gates pass.
 
 - Support email magic link initially; add Apple and Google only after redirect and account-linking
   behavior is tested across PWA and Capacitor.
+- Add phone OTP as an equivalent account path only after an SMS provider, sender registration,
+  rate limits, fraud monitoring, and recovery testing are configured. WhatsApp OTP is separately
+  feature-flagged and must not be implied available merely because links can be shared to WhatsApp.
 - Preserve full guest use without auth prompts during normal list creation or shopping.
 - Offer account creation contextually for backup, sharing, and multi-device access.
+- Label the commitment explicitly and state the requested value, list/household scope, and local
+  data treatment; never use generic “Continue” in place of signup or sharing (UX-11).
 - Implement session expiry, refresh, sign-out, offline session, and account switching states.
 - Prevent accidental orphaning when a user signs out with unsynced operations.
 
@@ -413,12 +479,17 @@ it cannot ship before all earlier gates pass.
 ### C4. Household and invitation flows
 
 - Create a household automatically for the first linked account.
-- Add `Share list/household` via secure universal link and QR code.
+- Default to list-scoped sharing through a secure universal link with explicit viewer/editor access;
+  make household-wide membership a separate, clearly labelled action.
+- Deliver list invitations through the device share sheet with copy, SMS, WhatsApp, and Telegram fallbacks;
+  do not request contact access or upload a manually entered recipient number.
 - Show inviter, household name, role, expiry, and concrete data scope before acceptance.
+- Complete the originally requested share/backup action after authentication rather than ending at
+  account creation.
 - Support pending, expired, used, revoked, and already-member states.
 - Add member management, ownership transfer, leave household, and household deletion flows.
-- Delay per-list sharing unless research shows household-wide sharing is insufficient; keep schema
-  extensible for it.
+- Keep list and household permissions independent so accepting a list invitation never exposes
+  unrelated household lists.
 
 ### C5. Sync and realtime
 
@@ -438,6 +509,8 @@ it cannot ship before all earlier gates pass.
 - Deduplicate retries by attachment ID/path.
 - Cache thumbnails locally and clean remote objects after tombstone retention expires.
 - Display recoverable states for local-only, uploading, uploaded, failed, and unavailable media.
+- Explain remote media processing, access, and retention at the point of use; preserve local/manual
+  alternatives when optional permission or upload is declined (UX-14).
 
 ### Stage C exit gate
 
@@ -448,6 +521,8 @@ it cannot ship before all earlier gates pass.
 - Delete/restore semantics are deterministic across devices.
 - Account deletion, household deletion, export, and retention behavior are documented and tested.
 - Collaboration can be disabled remotely without breaking local list use.
+- UX-11 contextual signup and UX-14 data-scope/decline-recovery criteria pass usability tests.
+- Public collaboration and backup claims correspond to observable, tested product states.
 
 ## Stage D — Best-in-class capture and shopping mode
 
@@ -457,6 +532,8 @@ it cannot ship before all earlier gates pass.
 
 - Add an always-available quick-add field with advanced details progressively disclosed.
 - Keep the existing sheet for price, quantity, unit, category, note, photo, and store assignment.
+- Add an explicit “Add exactly ‘typed text’” choice so catalog suggestions never replace clear user
+  intent (remaining UX-07).
 - Support comma/newline bulk input and paste parsing.
 - Add recent, frequent, favorite, and household-specific suggestions.
 - Merge likely duplicates or offer increment/separate choices; never merge silently at low
@@ -471,15 +548,23 @@ it cannot ship before all earlier gates pass.
 - Rank exact household history above generic catalog matches.
 - Record correction metrics without retaining raw sensitive text in analytics.
 - Add custom categories while preserving stable built-in category IDs.
+- Make learned aliases, corrections, recents, favorites, and store ordering inspectable, editable,
+  resettable, exportable, and removable; do not infer targeting traits (UX-12).
 
 ### D3. Shopping mode
 
 - Add an explicit mode optimized for one-handed use and minimal screen density.
 - Keep pending items prominent and collapse purchased groups by default.
 - Show real progress, remaining count, incomplete-price disclosure, and budget context.
+- Express completion concretely as “X of Y in cart · Y left,” based only on actual item status;
+  never count opening the app, catalog setup, or optional purchases (UX-08).
 - Add optional Wake Lock through the capability layer.
 - Support fast quantity change, undo purchase, and accessible row actions.
 - Add a user preference for purchase behavior and purchased-item placement.
+- Provide a calm completion state with an accurate count and optional review/reuse action; do not
+  use completion to interrupt with ratings, referrals, sharing, or upgrades (UX-13).
+- Reduce in-store row density by keeping purchase primary and progressively disclosing photo/edit/
+  delete actions while preserving visible, keyboard, and screen-reader alternatives (UX-15).
 
 ### D4. Store-specific aisle ordering
 
@@ -496,6 +581,8 @@ it cannot ship before all earlier gates pass.
 - Parse multiple spoken items into an editable review screen.
 - Show the recognized result before saving and never block manual editing.
 - Document on-device/cloud processing and request permission only at the moment of use.
+- Explain the immediate value before the system prompt, preserve manual entry, and never repeatedly
+  nag after microphone denial (UX-14).
 
 ### Stage D exit gate
 
@@ -504,6 +591,8 @@ it cannot ship before all earlier gates pass.
 - Aisle order persists and synchronizes per household/store.
 - Voice failures always return the user to an editable manual flow.
 - Correction and duplicate-merge metrics meet agreed thresholds before default enablement.
+- UX-07, UX-08, UX-12, UX-13, and UX-15 meet the positive and harm-guardrail thresholds defined in
+  the UX review.
 
 ## Stage E — Recipes, meal planning, and recurring household needs
 
@@ -534,6 +623,8 @@ are understood.
 - Define separate receipt, printed-list, screenshot, barcode, and handwriting use cases.
 - Benchmark on-device and cloud providers against a representative consented test set.
 - Route results to an editable review screen with confidence and original-image reference.
+- Explain local/cloud processing and retention before upload/permission; a declined permission must
+  return to manual add without degradation (UX-14).
 - Set cost, latency, privacy, and accuracy gates before selecting a provider.
 
 ### F2. Location and store detection
@@ -542,11 +633,14 @@ are understood.
 - Distinguish detected suggestion from confirmed store.
 - Cache reverse-geocoding responsibly and allow manual store selection at all times.
 - Do not run continuous background location for the initial feature.
+- Do not repeatedly prompt after denial or imply that store detection is required (UX-14).
 
 ### F3. Retail and pricing
 
 - Record price source, observed date, region, package size, and currency.
 - Never present stale or incomparable prices as a definitive saving.
+- Compare like-for-like and show absolute price alongside percentages; never choose a higher
+  reference primarily to make another option feel cheaper (UX-03).
 - Validate retailer API licenses, attribution, geographic coverage, and update frequency.
 - Keep offers, loyalty cards, and price comparison behind separate feature flags.
 - Complete privacy and legal review before ingesting receipts or loyalty identifiers.
@@ -597,6 +691,16 @@ are understood.
 - Export/import and account deletion.
 - Capacitor smoke tests when native projects are introduced.
 
+**Formative UX validation**
+
+- Run moderated first-use sessions across varied technical confidence before Stage A exit.
+- Run realistic one-handed shopping sessions before Stage D exit.
+- Test incomplete-price and budget comprehension, not only UI recognition.
+- Test destructive-action recovery, account-decline recovery, and optional-permission denial.
+- Include keyboard-only, screen-reader, 200% zoom, reduced-motion, and narrow-viewport tasks.
+- Treat small formative samples as directional; combine them with production telemetry before
+  generalizing defaults to all households.
+
 ### 5.2 Observability
 
 - Add provider-neutral structured logging with environment, release, device/app platform, and
@@ -607,6 +711,12 @@ are understood.
   errors, attachment failures, and crash-free sessions.
 - Product events: first item, first completed list, share initiated/completed, repeat-item use,
   shopping-mode completion, and categorization correction.
+- Add privacy-safe UX events for onboarding action/dismissal, suggestion versus exact-text choice,
+  draft recovery, unpriced-total exposure, undo offered/used, permission decline recovery, and
+  account-prompt decline recovery. Do not capture raw user content.
+- Pair every optimization metric with a harm guardrail from the UX review. Examples: capture speed
+  with wrong-item rate, account conversion with guest-flow completion, and recommendations with
+  unwanted/duplicate purchase rate.
 - Never log list names, item names, notes, photos, invite tokens, precise location, or auth secrets.
 - Add alert thresholds and a runbook for migration spikes, sync backlog, auth failure, and RLS
   regressions.
@@ -632,8 +742,28 @@ are understood.
 - Keep gesture actions optional and provide equivalent visible controls.
 - Resync `ShoppingList`, `CostFooter`, and `ItemRow` design-system contracts after their production
   APIs stabilize; do not treat stale preview bundles as release evidence.
+- Keep list sharing as one task-oriented entry point. Put account, backup, regional formatting,
+  currency, language, export, and privacy controls in a scalable settings surface rather than
+  mixing them into sharing.
 
-### 5.5 Performance budgets
+### 5.5 Ethical UX and behavioral experimentation
+
+- The release checklist in `docs/ux-psychology-review.md` is mandatory for new or materially
+  changed onboarding, defaults, progress, signup, permissions, pricing, sharing, retention,
+  recommendations, and destructive actions.
+- Count only real user-completed work. Catalog availability, app opening, generated demo content,
+  and optional profile fields do not qualify as progress.
+- Label signup, payment, permission, sharing, and deletion actions explicitly.
+- Preserve a useful manual/guest path when optional identity, permission, recommendation, or
+  personalization is declined.
+- Present financial context with completeness, basis, currency, source, region, and observation
+  time when applicable.
+- Prefer undo, trash, and restore to coercive warnings; use neutral copy for irreversible choices.
+- Require review of effects on vulnerable users, disability, low literacy, and financial stress.
+- Feature flags and rollback thresholds are required for behavioral experiments with material user
+  or business impact.
+
+### 5.6 Performance budgets
 
 - Define and enforce route bundle budgets; lazy-load account, diagnostics, recipe, and OCR flows.
 - Keep initial catalog search responsive on low-end mobile hardware.
@@ -688,6 +818,11 @@ are understood.
 - Duplicate-merge acceptance/reversal rate.
 - Shopping-session completion rate and time.
 - Accessibility defects per release.
+- Onboarding-to-first-user-created-item time and task success.
+- Exact-text versus suggestion choice, wrong-product reversal, and draft-recovery rate.
+- Price-coverage comprehension and budget-surprise rate.
+- Undo use and accidental-loss support incidents.
+- Permission and account-prompt decline recovery.
 
 ### Product value
 
@@ -699,6 +834,9 @@ are understood.
 - Lists completed per active household.
 
 Metrics are diagnostic, not permission for coercive onboarding or notification patterns.
+Every behavioral metric must be read with its paired harm guardrail from
+`docs/ux-psychology-review.md`; a conversion improvement does not ship when comprehension,
+accessibility, privacy, reversibility, or guest task success regresses beyond its threshold.
 
 ---
 
@@ -706,16 +844,22 @@ Metrics are diagnostic, not permission for coercive onboarding or notification p
 
 Execute in this dependency order:
 
-1. **Testing/CI baseline** — protects all subsequent migrations.
-2. **Accessible UI primitives and PWA fixes** — removes known launch blockers independently.
+1. **Testing/CI and ethical UX governance baseline** — protects all subsequent migrations and
+   completes UX-01.
+2. **Accessible UI primitives, first-use corrections, and PWA fixes** — completes UX-04, UX-05,
+   UX-06, UX-09, UX-10, and the pre-collaboration copy portion of UX-11.
 3. **Domain/repository extraction** — creates the seam for durable local and remote data.
 4. **IndexedDB and legacy migration** — establishes the production system of record.
-5. **Media, undo, export, and recovery** — completes local data safety.
+5. **Media, undo, export, recovery, and honest financial context** — completes UX-02, UX-03, and
+   the durable-draft portion of UX-07.
 6. **Supabase schema and RLS** — establishes remote security before client collaboration.
-7. **Auth and guest import** — links existing value to an account safely.
+7. **Auth and guest import** — links existing value to an account safely and completes contextual
+   commitment labeling in UX-11.
 8. **Outbox/reconciliation/realtime** — fulfills collaboration.
-9. **Households/invitations/remote attachments** — completes the shared-list product.
-10. **Quick capture, shopping mode, aisle order, and voice** — differentiates daily execution.
+9. **Households/invitations/remote attachments** — completes the shared-list product and the
+   Stage C permission/data-scope portion of UX-14.
+10. **Quick capture, shopping mode, aisle order, and voice** — completes UX-07, UX-08, UX-12,
+    UX-13, UX-15, and the voice portion of UX-14.
 11. **Templates/recurring items, recipes, and meal planning** — expands weekly planning.
 12. **OCR, location, offers, and price intelligence** — proceeds only through evidence gates.
 
@@ -739,6 +883,16 @@ beta unless user research identifies a missing core flow.
 - [ ] Deletes are soft, reversible, synchronized, and later purged by documented retention.
 - [ ] Export and account deletion are available.
 - [ ] Core dialogs, comboboxes, lists, and actions pass accessibility validation.
+- [ ] First launch contains no seeded purchases, fabricated budget, fake progress, or unavailable
+  collaboration/backup claims.
+- [ ] Onboarding can open the first value action and can be dismissed without blocking direct use.
+- [ ] List defaults are visible, editable, context-safe, and validated by early rename/change rate.
+- [ ] Item/list/bulk deletion is proportionate and recoverable with neutral copy.
+- [ ] Financial totals disclose unpriced coverage and never present partial values as complete.
+- [ ] Signup and sharing are explicit, contextual, and preserve guest work and decline recovery.
+- [ ] The UX ethics/accessibility checklist passes for every material beta flow.
+- [ ] Each behavioral hypothesis has a positive metric, harm guardrail, disconfirming signal,
+  feature flag where applicable, and rollback threshold.
 - [ ] Error reporting, sync/migration metrics, dashboards, alerts, and incident runbooks exist.
 - [ ] Privacy notice, retention policy, and security review are complete.
 - [ ] Feature flags can disable remote features while preserving local operation.

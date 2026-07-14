@@ -1,0 +1,82 @@
+.join-page {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: var(--page-gutter);
+}
+
+.join-card {
+  width: min(100%, 480px);
+  display: flex;
+  align-items: stretch;
+  flex-direction: column;
+  gap: var(--sp-4);
+  padding: var(--sp-8);
+}
+
+.join-card__brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  color: var(--accent);
+  font-weight: 750;
+}
+
+.join-card__icon {
+  width: 56px;
+  height: 56px;
+  display: grid;
+  place-items: center;
+  margin: var(--sp-2) auto 0;
+  color: var(--accent);
+}
+
+.join-card h1 {
+  text-align: center;
+  font-size: var(--fs-xl);
+  line-height: var(--lh-tight);
+}
+
+.join-card > p {
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.join-card__scope {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-4) 0;
+  color: var(--text-secondary);
+  border-top: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.join-card__scope > div {
+  display: flex;
+  flex-direction: column;
+}
+
+.join-card__scope span,
+.join-card__expiry {
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+}
+
+.join-card__expiry {
+  text-align: center;
+}
+
+.join-card__accept {
+  width: 100%;
+}
+
+.join-card__decline {
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+@media (max-width: 599px) {
+  .join-card { padding: var(--sp-6); }
+}

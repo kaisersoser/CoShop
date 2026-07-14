@@ -1,87 +1,55 @@
-# CoShop — Design Conventions
+# CoShop design conventions
 
-CoShop is a premium dark-mode React PWA. The design language is glassmorphism + vibrant violet-to-cyan gradients on a deep near-black background. Build layouts by composing the three exported components with CSS custom-property tokens and the utility classes below.
+CoShop is a focused, dark-mode shopping PWA. Its interface is built from one quiet reading column,
+semantic surfaces, strong typography, and restrained cyan emphasis. Avoid gradients, glow,
+backdrop blur, ambient decoration, and card-per-section layouts.
 
-## Wrapping and setup
+## Components
 
-No provider or context wrapper required. Components (`ShoppingList`, `CostFooter`, `ItemRow`) import a Zustand singleton that self-initialises. Render them directly:
+`ShoppingList`, `CostFooter`, and `ItemRow` are exported from `src/design-lib.ts`. They use the
+Zustand store directly and preserve the existing component signatures.
 
-```jsx
-import { ShoppingList, CostFooter } from 'coshop';
+- `ShoppingList` groups items by aisle with headings, whitespace, and row dividers.
+- `ItemRow` prioritizes check-off and item content; secondary actions live in its overflow menu.
+- `CostFooter` is a compact honest-total summary. The application composes positioning and the Add
+  item action around it.
 
-export default function Screen() {
-  return (
-    <div className="app-shell">
-      <ShoppingList />
-      <CostFooter />
-    </div>
-  );
-}
-```
+## Semantic tokens
 
-`ItemRow` requires one prop: `item` (a `ShoppingItem` object with `id`, `name`, `category`, `quantity`, `isPurchased`, `createdAt`, and optional `price`, `catalogId`, `storeIds`, `photoBase64`). `price` is optional — rows without a price show quantity only. Items whose `category` is `"other"` render an inline category picker. It is always rendered inside an `<ul>`.
+Use tokens from `src/index.css`; do not introduce arbitrary visual values in local components.
 
-## Styling idiom — CSS custom properties + utility classes
+| Role | Token |
+| --- | --- |
+| Canvas | `--background` |
+| Standard surface | `--surface` |
+| Menus/dialogs | `--surface-raised` |
+| Recessed controls | `--surface-subtle` |
+| Text | `--text-primary`, `--text-secondary`, `--text-muted` |
+| Structure | `--border-subtle`, `--border-strong` |
+| Brand/action | `--accent`, `--accent-hover`, `--accent-soft` |
+| Feedback | `--success`, `--warning`, `--danger` and their soft variants |
 
-**Do not invent new class names or inline `style` for design language.** Use tokens as `var(--token)` for custom elements, and the shipped utility classes for common patterns:
+The cyan accent is reserved for primary actions, current state, real progress, and focus. Missing
+prices, warnings, and destructive consequences must also be explained in text.
+
+## Shared classes
 
 | Class | Purpose |
-|---|---|
-| `.glass` | Translucent elevated surface (backdrop-filter blur, border, shadow) |
-| `.glass-strong` | Stronger blur — headers, modals, the cost footer |
-| `.btn-primary` | Gradient CTA button (violet → cyan, glow shadow) |
-| `.btn-ghost` | Secondary ghost button (border, subtle fill on hover) |
-| `.icon-btn` | Circular 38 px icon button |
-| `.field` | Text/number input (glassmorphism fill, accent focus ring) |
-| `.chip` | Small pill badge (soft gradient tint, border) |
-| `.text-grad` | Applies the brand gradient as a text fill |
+| --- | --- |
+| `.surface` | Meaningfully grouped standard surface |
+| `.surface-raised` | Menus, invitations, and other truly elevated content |
+| `.btn-primary` | One primary action per context |
+| `.btn-secondary` / `.btn-ghost` | Lower-emphasis actions |
+| `.icon-btn` | 44px accessible icon-only control |
+| `.field` | Shared input/select treatment |
+| `.status-badge` | Compact state or access label only |
 
-**Key design tokens** (all defined in `styles.css` → `_ds_bundle.css`):
+## Layout and behavior
 
-```
-Surfaces:  --bg-base #0b0f17   --bg-elev-1  --bg-elev-2  --bg-elev-3
-Glass:     --glass-bg          --glass-bg-strong  --glass-border
-Accent:    --accent-1 #7c5cff  --accent-2 #21d4fd  --accent-grad (linear-gradient 135deg)
-Text:      --text-primary      --text-secondary    --text-tertiary
-Semantic:  --success #34e0a1   --warning #ffb648   --danger #ff6b81
-Spacing:   --sp-1 4px  --sp-2 8px  --sp-3 12px  --sp-4 16px  --sp-5 20px  --sp-6 24px  --sp-8 32px  --sp-10 40px  --sp-12 48px
-Radii:     --r-sm 8px  --r-md 14px  --r-lg 20px  --r-xl 28px  --r-pill 999px
-Font size: --fs-xs 0.72rem  --fs-sm 0.84rem  --fs-md 0.95rem  --fs-lg 1.1rem  --fs-xl 1.4rem  --fs-2xl 1.9rem  --fs-3xl 2.4rem
-Motion:    --dur-fast 140ms  --dur-med 260ms  --ease-out  --ease-spring
-Layout:    --max-w 720px  --footer-h 116px
-```
-
-## Where the truth lives
-
-- All tokens and utilities: `_ds/<folder>/styles.css` and its `@import` chain (includes `_ds_bundle.css`)
-- Per-component API and usage notes: `_ds/<folder>/components/general/<Name>/<Name>.prompt.md`
-
-## Idiomatic build snippet
-
-A shopping screen with the real components and the DS's class vocabulary for layout glue:
-
-```jsx
-import { ShoppingList, CostFooter } from 'coshop';
-
-export default function ShoppingScreen() {
-  return (
-    <div
-      style={{
-        minHeight: '100vh',
-        background: 'var(--bg-base)',
-        paddingBottom: 'calc(var(--footer-h) + var(--sp-6))',
-      }}
-    >
-      <header className="glass-strong" style={{ padding: 'var(--sp-4) var(--sp-5)', margin: 'var(--sp-3)', borderRadius: 'var(--r-xl)' }}>
-        <h1 style={{ fontSize: 'var(--fs-2xl)', fontWeight: 800, letterSpacing: '-0.02em' }}>
-          Week of Jun 22
-        </h1>
-      </header>
-      <main style={{ padding: 'var(--sp-3)' }}>
-        <ShoppingList />
-      </main>
-      <CostFooter />
-    </div>
-  );
-}
-```
+- Use 16px mobile, 24px tablet, and 32px desktop gutters with `--max-w: 760px`.
+- Group content through alignment, spacing, type, and dividers before adding a surface or border.
+- Keep every interactive target at least 44px high and retain visible keyboard focus.
+- Use the shared `Dialog` primitive for modal work. Mobile uses sheets; desktop uses bounded
+  dialogs. Dialogs must trap and restore focus and remain scrollable.
+- Motion is limited to 120–180ms opacity/translation and respects reduced motion.
+- Use sentence case and shopper-oriented labels such as “Still needed” and “In cart.”
