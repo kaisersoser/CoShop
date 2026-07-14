@@ -14,6 +14,7 @@ import {
   Baby,
   PawPrint,
   Package,
+  Tag,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -35,6 +36,7 @@ const ICONS: Record<string, LucideIcon> = {
   Baby,
   PawPrint,
   Package,
+  Tag,
 };
 
 export function CategoryIcon({ name, size = 16 }: { name: string; size?: number }) {

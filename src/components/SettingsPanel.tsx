@@ -9,6 +9,7 @@ import { AuthForm } from './AuthForm';
 import { useI18n } from '../i18n';
 import './SettingsPanel.css';
 import { Dialog } from './Dialog';
+import { CategorySettings } from './CategorySettings';
 
 export function SettingsPanel({ onClose }: { onClose: () => void }) {
   const [session, setSession] = useState<Session | null>(null);
@@ -33,7 +34,7 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
 
   const exportData = () => {
     const state = useShopStore.getState();
-    const payload = JSON.stringify({ exportedAt: new Date().toISOString(), version: 1, lists: state.lists, itemsByList: state.itemsByList, stores: state.stores, preferences: state.preferences }, null, 2);
+    const payload = JSON.stringify({ exportedAt: new Date().toISOString(), version: 2, lists: state.lists, itemsByList: state.itemsByList, stores: state.stores, customCategoriesByList: state.customCategoriesByList, preferences: state.preferences }, null, 2);
     const url = URL.createObjectURL(new Blob([payload], { type: 'application/json' }));
     const anchor = document.createElement('a'); anchor.href = url; anchor.download = `coshop-export-${new Date().toISOString().slice(0, 10)}.json`; anchor.click(); URL.revokeObjectURL(url);
   };
@@ -58,6 +59,8 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
         <div className="settings-field"><label htmlFor="settings-language"><Languages size={14} /> {t('language')}</label><select id="settings-language" className="field" value={preferences.language} onChange={(event) => updatePreferences({ language: event.target.value })}>{LANGUAGES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select><small>{t('languageHelp')}</small></div>
         <div className="settings-field"><label htmlFor="settings-currency"><WalletCards size={14} /> {t('currency')}</label><select id="settings-currency" className="field" value={canChangeListCurrency ? activeList?.currency ?? preferences.defaultCurrency : preferences.defaultCurrency} onChange={(event) => changeCurrency(event.target.value)}>{CURRENCIES.map(([value, label]) => <option key={value} value={value}>{value} — {localizedCurrencyName(language, value, label)}</option>)}</select><small>{t(canChangeListCurrency ? 'currencyEditableHelp' : 'currencyViewHelp')}</small></div>
       </section>
+
+      <CategorySettings />
 
       <section className="settings-section" aria-labelledby="backup-heading">
         <div className="settings-section__heading"><Cloud size={17} /><div><h4 id="backup-heading">{t('accountBackup')}</h4><p>{t('accountHelp')}</p></div></div>

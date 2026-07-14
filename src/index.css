@@ -57,7 +57,8 @@
   --z-menu: 40;
   --z-overlay: 60;
   --z-dialog: 70;
-  --z-toast: 80;
+  --z-popover: 80;
+  --z-toast: 90;
 }
 
 *,
@@ -152,6 +153,7 @@ a {
 .btn-primary,
 .btn-secondary,
 .btn-ghost,
+.btn-danger,
 .icon-btn {
   display: inline-flex;
   min-height: 44px;
@@ -173,6 +175,14 @@ a {
 .btn-primary:hover {
   background: var(--accent-hover);
 }
+
+.btn-danger {
+  padding: 0 var(--sp-4);
+  color: #fff;
+  background: var(--danger);
+}
+
+.btn-danger:hover { filter: brightness(1.08); }
 
 .btn-secondary,
 .btn-ghost {

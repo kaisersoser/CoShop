@@ -60,7 +60,10 @@ export function Dialog({
         return;
       }
       if (event.key !== 'Tab' || !surfaceRef.current) return;
-      const focusable = Array.from(surfaceRef.current.querySelectorAll<HTMLElement>(focusableSelector))
+      const focusable = [
+        ...Array.from(surfaceRef.current.querySelectorAll<HTMLElement>(focusableSelector)),
+        ...Array.from(document.querySelectorAll<HTMLElement>(`[data-dialog-popover="true"] ${focusableSelector}`)),
+      ]
         .filter((element) => !element.hidden && element.getAttribute('aria-hidden') !== 'true');
       if (focusable.length === 0) {
         event.preventDefault();

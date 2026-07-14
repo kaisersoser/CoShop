@@ -94,6 +94,7 @@ automated regression tests, and support feedback.
 | Completed combobox relationships and restrained add feedback. | Keyboard users receive an active option relationship and rapid-entry confirmation. | Incomplete autocomplete semantics and weak multi-add feedback. | AddItemComposer and localized status copy. |
 | Simplified settings, sharing, import, and invitation surfaces. | Secondary work reads as sections and dividers instead of nested cards. | Heavy modal density and AI novelty framing. | Dialog/surface primitives and component-level CSS. |
 | Updated all four locales and design-sync guidance. | Labels describe shopper goals and future contributors use the same system. | Mechanical copy and stale glassmorphism instructions. | i18n messages, favicon, metadata, conventions, and previews. |
+| Added list-scoped custom categories with reversible management. | Shoppers can name aisles that match their real stores without turning a fallback bucket into permanent information architecture. | Fixed taxonomy, misleading “Other” label, and loss of collaborator context for arbitrary category strings. | Category picker, Settings, Zustand/IndexedDB state, JSON export, Supabase schema/realtime sync, and all four locales. |
 
 ### Final quality review
 
@@ -109,8 +110,14 @@ automated regression tests, and support feedback.
   are covered by end-to-end tests.
 - Destructive item removal remains recoverable through the existing undo model. Shopping progress
   counts only checked items, and cost context always keeps known totals beside unpriced-item counts.
-- `npm run check` passes: TypeScript, 14 unit tests, production/PWA build, and high-severity npm audit.
-  `npm run test:e2e` passes 32 desktop/mobile tests.
+- Custom categories were visually reviewed in Settings and item editing at 1440×900 and 390×844,
+  including a long label. The management section remains continuous and scrollable; controls retain
+  their semantic hierarchy and no horizontal overflow appears at 320px with 200% text.
+- Category deletion names the affected item count, moves those items to Uncategorized, and uses the
+  shared Undo model to restore both the category and assignments. Viewers cannot mutate categories.
+- `npm run check` passes: TypeScript, 18 unit tests, production/PWA build, and high-severity npm audit.
+  `npm run test:e2e` passes 34 desktop/mobile tests, including custom-category Axe, responsive,
+  persistence, rename, deletion, and restoration coverage.
 
 ### Remaining work
 
@@ -121,3 +128,14 @@ automated regression tests, and support feedback.
   visual regression, but future performance work should split PDF/collaboration code further.
 - Real two-account collaboration soak testing and native-device testing remain separate production
   readiness gates; this visual pass did not change their data flows.
+
+### Custom-category rollout
+
+- Applied `202607120001_custom_categories.sql` to the production Supabase project before the client
+  release. The remote migration ledger matches all seven repository migrations and the
+  `public.custom_categories` table is live with RLS and list/name indexes.
+- Deployed Vercel production release `dpl_329B8cFTcJbcec9vXmTdyZrsiw2n` and aliased it to
+  `https://coshop.vercel.app`.
+- Re-ran all 34 desktop/mobile end-to-end tests against the production URL. Custom-category
+  creation, keyboard selection, rename, deletion, Undo, 200% text, Axe, offline shell, sharing,
+  localization, and invitation coverage passed.

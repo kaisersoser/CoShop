@@ -79,6 +79,49 @@ test('item overflow keeps removal recoverable', async ({ page }) => {
   await expect(page.getByText('Recovery test item', { exact: true })).toBeVisible();
 });
 
+test('editors create, rename, delete, and restore a custom category', async ({ page }) => {
+  await page.getByRole('button', { name: 'Add an item' }).click();
+  await page.getByPlaceholder('Search products, e.g. bananas').fill('Local honey');
+  await page.getByRole('button', { name: 'Add to list' }).click();
+  await page.getByRole('button', { name: 'Close' }).click();
+
+  await page.getByRole('button', { name: 'More actions for Local honey' }).click();
+  await page.getByRole('menuitem', { name: 'Edit item' }).click();
+  const categoryTrigger = page.getByRole('button', { name: 'Category: Pantry' });
+  await categoryTrigger.focus();
+  await page.keyboard.press('ArrowDown');
+  await expect(page.getByRole('option', { name: 'Fruits' })).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog', { name: 'Edit item' })).toBeVisible();
+  await expect(categoryTrigger).toBeFocused();
+  await categoryTrigger.click();
+  await page.getByRole('button', { name: 'Create category' }).click();
+  await page.getByLabel('Category name').fill('Farmers market');
+  await page.getByRole('button', { name: 'Create', exact: true }).click();
+  await page.getByRole('button', { name: 'Save changes' }).click();
+  await expect(page.getByRole('heading', { name: 'Farmers market' })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Open settings' }).click();
+  await expect(page.getByRole('heading', { name: 'Custom categories' })).toBeVisible();
+  const categorySettingsAxe = await new AxeBuilder({ page }).analyze();
+  expect(categorySettingsAxe.violations.filter((violation) => ['serious', 'critical'].includes(violation.impact ?? ''))).toEqual([]);
+  const rename = page.getByLabel('Rename Farmers market');
+  await rename.fill('Local market');
+  await page.keyboard.press('Tab');
+  await page.getByRole('button', { name: 'Delete Local market' }).click();
+  await expect(page.getByText(/1 items will move to Uncategorized/)).toBeVisible();
+  await page.getByRole('button', { name: 'Delete', exact: true }).click();
+  await page.getByRole('button', { name: 'Close' }).click();
+  await expect(page.getByRole('heading', { name: 'Uncategorized' })).toBeVisible();
+  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Local market' })).toBeVisible();
+  await page.setViewportSize({ width: 320, height: 700 });
+  await page.evaluate(() => { document.documentElement.style.fontSize = '200%'; });
+  await page.getByRole('button', { name: 'Open settings' }).click();
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  expect(overflow).toBeLessThanOrEqual(1);
+});
+
 test('list actions menu handles Escape without closing its dialog and focus returns on close', async ({ page }) => {
   const trigger = page.getByRole('button', { name: 'Switch or manage lists' });
   await trigger.click();

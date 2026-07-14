@@ -116,14 +116,18 @@
 
 .category-menu {
   position: fixed;
-  z-index: var(--z-menu);
-  max-height: 300px;
+  z-index: var(--z-popover);
+  max-height: min(360px, calc(100vh - 16px));
   overflow-y: auto;
   padding: var(--sp-1);
   background: var(--surface-raised);
   border: 1px solid var(--border-subtle);
   border-radius: var(--r-md);
   box-shadow: var(--shadow-menu);
+}
+
+.category-menu > [role='listbox'] {
+  display: contents;
 }
 
 .category-menu__item {
@@ -157,6 +161,45 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.category-menu__create {
+  width: 100%;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-top: var(--sp-1);
+  padding: 0 var(--sp-2);
+  color: var(--accent);
+  border-top: 1px solid var(--border-subtle);
+  text-align: left;
+}
+
+.category-menu__create-form {
+  display: grid;
+  gap: var(--sp-2);
+  margin-top: var(--sp-1);
+  padding: var(--sp-2);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.category-menu__create-form label { color: var(--text-secondary); font-size: var(--fs-xs); font-weight: 650; }
+.category-menu__create-form > div { display: flex; justify-content: flex-end; gap: var(--sp-1); }
+.category-menu__create-form .btn-primary,
+.category-menu__create-form .btn-ghost { min-height: 36px; padding: 0 var(--sp-2); }
+.field-error { color: var(--danger); font-size: var(--fs-xs); }
+
+.edit-category-field .category-select {
+  width: 100%;
+  min-height: 44px;
+  justify-content: flex-start;
+  padding: 0 var(--sp-3);
+  color: var(--text-primary);
+  background: var(--background);
+  border: 1px solid var(--border-subtle);
+}
+
+.edit-category-field .category-select__chevron { margin-left: auto; }
 
 .item-row__actions {
   display: flex;

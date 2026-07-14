@@ -7,7 +7,7 @@ const reset = () => {
   const listId = 'test-list';
   useShopStore.setState({
     lists: [{ id: listId, name: 'Test', currency: 'USD', createdAt: 1, updatedAt: 1 }],
-    itemsByList: { [listId]: [] }, stores: [], trash: [], categoryPreferences: {},
+    itemsByList: { [listId]: [] }, stores: [], trash: [], categoryPreferences: {}, customCategoriesByList: { [listId]: [] },
     activeListId: listId, onboardingSeen: false, hydrated: true,
     preferences: { region: 'US', language: 'en', defaultCurrency: 'USD' },
   });
@@ -47,6 +47,41 @@ describe('shopping state', () => {
     useShopStore.getState().updatePreferences({ region: 'FR', defaultCurrency: 'EUR' });
     const id = useShopStore.getState().createList('Paris groceries');
     expect(useShopStore.getState().lists.find((list) => list.id === id)?.currency).toBe('EUR');
+  });
+  it('creates, renames, and reorders list-specific custom categories', () => {
+    const first = useShopStore.getState().createCustomCategory('Farmers market');
+    const second = useShopStore.getState().createCustomCategory('Bulk shop');
+    expect(first).toBeTruthy(); expect(second).toBeTruthy();
+    expect(useShopStore.getState().renameCustomCategory(first!, 'Market stalls')).toBe(true);
+    useShopStore.getState().moveCustomCategory(second!, -1);
+    const categories = useShopStore.getState().customCategoriesByList['test-list'].filter((category) => !category.deletedAt).sort((a, b) => a.order - b.order);
+    expect(categories.map((category) => category.name)).toEqual(['Bulk shop', 'Market stalls']);
+  });
+  it('moves affected items to Uncategorized when deleting a category and restores both with undo', () => {
+    const category = useShopStore.getState().createCustomCategory('Market')!;
+    useShopStore.getState().addItem({ name: 'Local honey', category });
+    const item = useShopStore.getState().itemsByList['test-list'][0];
+    useShopStore.getState().setItemCategory(item.id, category);
+    useShopStore.getState().deleteCustomCategory(category);
+    expect(useShopStore.getState().itemsByList['test-list'][0].category).toBe('other');
+    expect(useShopStore.getState().customCategoriesByList['test-list'][0].deletedAt).toBeTypeOf('number');
+    useShopStore.getState().restoreTrash();
+    expect(useShopStore.getState().itemsByList['test-list'][0].category).toBe(category);
+    expect(useShopStore.getState().customCategoriesByList['test-list'][0].deletedAt).toBeUndefined();
+  });
+  it('does not let viewers manage custom categories', () => {
+    useShopStore.setState((state) => ({ lists: state.lists.map((list) => ({ ...list, accessRole: 'viewer' as const, remoteHouseholdId: 'remote-household' })) }));
+    expect(useShopStore.getState().createCustomCategory('Private aisle')).toBeUndefined();
+    expect(useShopStore.getState().customCategoriesByList['test-list']).toEqual([]);
+  });
+  it('does not leak a custom category preference into another list', () => {
+    const category = useShopStore.getState().createCustomCategory('Market')!;
+    useShopStore.getState().addItem({ name: 'Local honey' });
+    const item = useShopStore.getState().itemsByList['test-list'][0];
+    useShopStore.getState().setItemCategory(item.id, category);
+    const otherList = useShopStore.getState().createList('Other shop');
+    useShopStore.getState().addItem({ name: 'Local honey' });
+    expect(useShopStore.getState().itemsByList[otherList][0].category).not.toBe(category);
   });
   it('defines language and currency defaults for the first four European markets', () => {
     expect(REGION_DEFAULTS).toMatchObject({

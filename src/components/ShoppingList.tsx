@@ -1,12 +1,13 @@
 import { useMemo } from 'react';
 import { useShopStore, selectActiveItems } from '../store/store';
 import type { ShoppingItem } from '../store/store';
-import { getCategory, categoryOrder } from '../data/categories';
+import { categoryOrder } from '../data/categories';
 import { ItemRow } from './ItemRow';
 import { CategoryIcon } from './categoryIcon';
 import { CheckCircle2, FileUp, PackageOpen, Trash2 } from 'lucide-react';
 import './ShoppingList.css';
 import { useI18n } from '../i18n';
+import { useListCategories } from '../hooks/useListCategories';
 
 /* ============================================================================
    ShoppingList — groups items by product CATEGORY and splits by purchase
@@ -14,12 +15,13 @@ import { useI18n } from '../i18n';
    ========================================================================== */
 
 /** Distinct category ids present in a set of items, in display order. */
-const orderedCategories = (buckets: Record<string, ShoppingItem[]>): string[] =>
-  Object.keys(buckets).sort((a, b) => categoryOrder(a) - categoryOrder(b));
+const orderedCategories = (buckets: Record<string, ShoppingItem[]>, customCategories: ReturnType<typeof useListCategories>['customCategories']): string[] =>
+  Object.keys(buckets).sort((a, b) => categoryOrder(a, customCategories) - categoryOrder(b, customCategories));
 
 export function ShoppingList({ onAdd, onImport, canEdit = true }: { onAdd: () => void; onImport: () => void; canEdit?: boolean }) {
   const items = useShopStore(selectActiveItems);
   const clearPurchased = useShopStore((s) => s.clearPurchased);
+  const { customCategories } = useListCategories();
   const { t } = useI18n();
 
   // Bucket items by category + status for stable, performant rendering.
@@ -54,7 +56,7 @@ export function ShoppingList({ onAdd, onImport, canEdit = true }: { onAdd: () =>
       {/* Pending section */}
       <SectionHeader title={t('pending')} count={pendingCount} />
       <div className="shopping-list__groups">
-        {orderedCategories(pendingByCat).map((cat) => (
+        {orderedCategories(pendingByCat, customCategories).map((cat) => (
           <CategoryGroup key={`p-${cat}`} category={cat} items={pendingByCat[cat]} canEdit={canEdit} />
         ))}
       </div>
@@ -82,7 +84,7 @@ export function ShoppingList({ onAdd, onImport, canEdit = true }: { onAdd: () =>
               </button> : undefined}
           />
           <div className="shopping-list__groups shopping-list__groups--done">
-            {orderedCategories(purchasedByCat).map((cat) => (
+            {orderedCategories(purchasedByCat, customCategories).map((cat) => (
               <CategoryGroup key={`d-${cat}`} category={cat} items={purchasedByCat[cat]} dimmed canEdit={canEdit} />
             ))}
           </div>
@@ -103,8 +105,8 @@ interface CategoryGroupProps {
 }
 
 function CategoryGroup({ category, items, dimmed, canEdit }: CategoryGroupProps) {
-  const meta = getCategory(category);
-  const { categoryLabel } = useI18n();
+  const { categoryFor, labelFor } = useListCategories();
+  const meta = categoryFor(category);
   return (
     <section className={`store-group ${dimmed ? 'store-group--dimmed' : ''}`}>
       <header className="store-group__head">
@@ -112,7 +114,7 @@ function CategoryGroup({ category, items, dimmed, canEdit }: CategoryGroupProps)
           <span className="store-group__icon">
             <CategoryIcon name={meta.icon} size={15} />
           </span>
-          {categoryLabel(meta.id)}
+          {labelFor(meta.id)}
         </h3>
         <span className="store-group__count">{items.length}</span>
       </header>

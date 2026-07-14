@@ -1,8 +1,8 @@
 /* ============================================================================
    CoShop — Category Taxonomy
    ----------------------------------------------------------------------------
-   The fixed set of product groups items are bucketed into. Order here is the
-   display order in the list (the catch-all `other` is forced last regardless).
+   The built-in product groups items are bucketed into. Lists may append their
+   own categories; the catch-all `other` is always forced last.
    `icon` names map to lucide-react icons (resolved in the UI layer).
    ========================================================================== */
 
@@ -13,6 +13,7 @@ export interface Category {
   label: string;
   /** lucide-react icon name used for the group header. */
   icon: string;
+  custom?: boolean;
 }
 
 /** The ordered taxonomy. Add groups here; keep ids stable once shipped. */
@@ -41,13 +42,31 @@ const BY_ID: Record<string, Category> = Object.fromEntries(
   CATEGORIES.map((c) => [c.id, c]),
 );
 
-/** Look up a category by id, falling back to `other` for unknown ids. */
-export const getCategory = (id: string): Category =>
-  BY_ID[id] ?? BY_ID[OTHER_CATEGORY_ID];
+export interface CustomCategoryLike { id: string; name: string; order: number; deletedAt?: number; }
+
+/** Look up a category by id, falling back to Uncategorized for unknown ids. */
+export const getCategory = (id: string, customCategories: CustomCategoryLike[] = []): Category => {
+  const custom = customCategories.find((category) => category.id === id && !category.deletedAt);
+  return custom ? { id: custom.id, label: custom.name, icon: 'Tag', custom: true } : BY_ID[id] ?? BY_ID[OTHER_CATEGORY_ID];
+};
+
+export const activeCustomCategories = <T extends CustomCategoryLike>(categories: T[]): T[] =>
+  categories.filter((category) => !category.deletedAt).sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
+
+export const categoriesForList = (customCategories: CustomCategoryLike[] = []): Category[] => {
+  const fallback = BY_ID[OTHER_CATEGORY_ID];
+  return [
+    ...CATEGORIES.filter((category) => category.id !== OTHER_CATEGORY_ID),
+    ...activeCustomCategories(customCategories).map((category) => ({ id: category.id, label: category.name, icon: 'Tag', custom: true })),
+    fallback,
+  ];
+};
 
 /** Display order index; `other` always sorts last. */
-export const categoryOrder = (id: string): number => {
+export const categoryOrder = (id: string, customCategories: CustomCategoryLike[] = []): number => {
   if (id === OTHER_CATEGORY_ID) return Number.MAX_SAFE_INTEGER;
   const idx = CATEGORIES.findIndex((c) => c.id === id);
-  return idx === -1 ? Number.MAX_SAFE_INTEGER - 1 : idx;
+  if (idx !== -1) return idx;
+  const custom = activeCustomCategories(customCategories).findIndex((category) => category.id === id);
+  return custom === -1 ? Number.MAX_SAFE_INTEGER - 1 : CATEGORIES.length + custom;
 };

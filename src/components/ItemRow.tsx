@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import type { ShoppingItem } from '../store/store';
 import { selectActiveList, useShopStore } from '../store/store';
-import { CATEGORIES, OTHER_CATEGORY_ID } from '../data/categories';
+import { OTHER_CATEGORY_ID } from '../data/categories';
 import { capabilities } from '../lib/capabilities';
 import { loadImage, removeImage, saveImage } from '../lib/media';
 import { CategorySelect } from './CategorySelect';
@@ -238,7 +238,7 @@ interface EditModalProps {
 }
 
 function EditModal({ item, onClose, onSave }: EditModalProps) {
-  const { t, categoryLabel } = useI18n();
+  const { t } = useI18n();
   const [name, setName] = useState(item.name);
   const [category, setCategory] = useState(item.category);
   const [price, setPrice] = useState(item.price !== undefined ? String(item.price) : '');
@@ -267,18 +267,7 @@ function EditModal({ item, onClose, onSave }: EditModalProps) {
         <input className="field" value={name} onChange={(e) => setName(e.target.value)} />
 
         <label className="composer__label">{t('category')}</label>
-        <select
-          className="field"
-          value={category}
-          onChange={(e) => setCategory(e.target.value)}
-          aria-label={t('category')}
-        >
-          {CATEGORIES.map((c) => (
-            <option key={c.id} value={c.id}>
-              {categoryLabel(c.id)}
-            </option>
-          ))}
-        </select>
+        <div className="edit-category-field"><CategorySelect value={category} onChange={setCategory} /></div>
 
         <div className="composer__row">
           <div className="composer__field-group">
